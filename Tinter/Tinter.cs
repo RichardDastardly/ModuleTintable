@@ -28,7 +28,7 @@ namespace Tinter
         }
     }
 
-    public class PartTinter : PartModule
+    public class Tinter : PartModule
     {
 
         private bool active = false;
@@ -93,7 +93,8 @@ namespace Tinter
         {
             for ( int i = 0; i< Fields.Count; i++ )
             {
-                if( Fields[i].uiControlEditor != null )
+                var uiField = Fields[i].uiControlEditor as UI_FloatRange; // good grief this looks terrible, surely must be a better way?
+                if ( uiField != null ) 
                 {
                     Fields[i].guiActiveEditor = flag;
                 }

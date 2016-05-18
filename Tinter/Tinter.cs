@@ -89,6 +89,10 @@ namespace Tinter
           UI_FloatRange(affectSymCounterparts = UI_Scene.Editor, minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
         public float tintValue = 0;
 
+        [KSPField(isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Glossiness"),
+          UI_FloatRange(affectSymCounterparts = UI_Scene.Editor, minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
+        public float tintGloss = 1;
+
         private void ToggleFields( bool flag )
         {
             for ( int i = 0; i< Fields.Count; i++ )
@@ -162,6 +166,11 @@ namespace Tinter
             return v / 255;
         }
 
+        private float Saturate( float v )
+        {
+            return Mathf.Clamp01(v);
+        }
+
         private void UpdateShaderValues()
         {
             foreach ( Material m in ManagedMaterials.ToArray())
@@ -173,7 +182,15 @@ namespace Tinter
                 m.SetFloat("_TintHue", SliderToShaderValue(tintHue));
                 m.SetFloat("_TintSat", SliderToShaderValue(tintSaturation));
                 m.SetFloat("_TintVal", SliderToShaderValue(tintValue));
-                m.SetFloat("_TintSatThreshold", SliderToShaderValue(tintBaseTexSatThreshold));
+
+                float shaderTBTST = SliderToShaderValue(tintBaseTexSatThreshold);
+                m.SetFloat("_TintSatThreshold", shaderTBTST);
+
+                float shaderSatFalloff = Saturate(shaderTBTST * 0.75f);
+                m.SetFloat("_SaturationFalloff", shaderSatFalloff );
+
+                m.SetFloat("_SaturationWindow", shaderTBTST - shaderSatFalloff);
+                m.SetFloat("_Glossiness", tintGloss);
             }
         }
 

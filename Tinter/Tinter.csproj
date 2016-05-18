@@ -59,6 +59,7 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="README.md" />
     <None Include="Tint.cginc" />
     <None Include="TintedEmissiveSpecular.shader" />
     <None Include="TintedSpecular.shader" />

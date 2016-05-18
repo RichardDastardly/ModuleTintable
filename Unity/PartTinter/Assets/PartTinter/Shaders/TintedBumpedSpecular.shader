@@ -21,11 +21,12 @@ Shader "KSP/Tinted Bumped Specular"
 		Tags { "RenderType"="Opaque" }
 		ZWrite On
 		ZTest LEqual
-		Blend SrcAlpha OneMinusSrcAlpha 
+	//	Blend SrcAlpha OneMinusSrcAlpha 
+		Blend Off
 
 		CGPROGRAM
 
-		#pragma surface surf BlinnPhong
+		#pragma surface surf NormalizedBlinnPhong
 		#pragma target 3.0
 		
 		half _Shininess;
@@ -38,7 +39,9 @@ Shader "KSP/Tinted Bumped Specular"
 		float4 _RimColor;
 		float4 _TemperatureColor;
 		float4 _BurnColor;
-		
+
+#include "Tint.cginc"
+
 		struct Input
 		{
 			float2 uv_MainTex;
@@ -57,9 +60,9 @@ Shader "KSP/Tinted Bumped Specular"
 			float3 emission = (_RimColor.rgb * pow(rim, _RimFalloff)) * _RimColor.a;
 			emission += _TemperatureColor.rgb * _TemperatureColor.a;
 
-			o.Albedo = color.rgb;
+			o.Albedo = lerp(color.rgb, color.rgb * HSVtoRGB(float3(_TintHue, _TintSat, _TintVal)), BlendFactor(color)) *_BurnColor;
 			o.Emission = emission;
-			o.Gloss = color.a;
+			o.Gloss = color.a * _GlossMult;
 			o.Specular = _Shininess;
 			o.Normal = normal;
 

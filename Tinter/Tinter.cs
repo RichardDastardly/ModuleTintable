@@ -63,7 +63,7 @@ namespace Tinter
                 stepIncrement = 1,
                 scene = UI_Scene.Editor
         )]
-        public float tintBaseTexVal = 0;
+        public float tintBlendPoint = 0;
 
         [KSPField(isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Blend Band"),
          UI_FloatRange(affectSymCounterparts = UI_Scene.Editor, minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
@@ -92,6 +92,55 @@ namespace Tinter
         [KSPField(isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Glossiness"),
           UI_FloatRange(affectSymCounterparts = UI_Scene.Editor, minValue = 0, maxValue = 100, stepIncrement = 1, scene = UI_Scene.Editor)]
         public float tintGloss = 100;
+
+        private static class ClipBoard 
+        {
+            static float BlendPoint = 0;
+            static float Band = 0;
+            static float Falloff = 0;
+            static float Threshold = 0;
+            static float Hue = 0;
+            static float Saturation = 0;
+            static float Value = 0;
+            static float Gloss = 0;
+
+            public static void Copy( Tinter t )
+            {
+                BlendPoint = t.tintBlendPoint;
+                Band = t.tintBaseTexVBand;
+                Falloff = t.tintBaseTexVFalloff;
+                Threshold = t.tintBaseTexSatThreshold;
+                Hue = t.tintHue;
+                Saturation = t.tintSaturation;
+                Value = t.tintValue;
+                Gloss = t.tintGloss;
+            }
+
+            public static void Paste( Tinter t )
+            {
+                t.tintBlendPoint = BlendPoint;
+                t.tintBaseTexVBand = Band;
+                t.tintBaseTexVFalloff = Falloff;
+                t.tintBaseTexSatThreshold = Threshold;
+                t.tintHue = Hue;
+                t.tintSaturation = Saturation;
+                t.tintValue = Value;
+                t.tintGloss = Gloss;
+            }
+        }
+
+        [KSPEvent(guiActiveEditor = true, guiName = "Copy colour settings")]
+        public void CopytoClipboard()
+        {
+            ClipBoard.Copy(this);
+        }
+
+        [KSPEvent(guiActiveEditor = true, guiName = "Paste colour settings")]
+        public void PastefromClipboard()
+        {
+            ClipBoard.Paste(this);
+            needUpdate = true;
+        }
 
         private void ToggleFields( bool flag )
         {
@@ -173,10 +222,10 @@ namespace Tinter
 
         private void UpdateShaderValues()
         {
-            foreach ( Material m in ManagedMaterials.ToArray())
+            foreach (Material m in ManagedMaterials.ToArray())
             {
                 TDebug.Print(part.name + "Updating material " + m.name);
-                m.SetFloat("_TintPoint", SliderToShaderValue(tintBaseTexVal));
+                m.SetFloat("_TintPoint", SliderToShaderValue(tintBlendPoint));
                 m.SetFloat("_TintBand", SliderToShaderValue(tintBaseTexVBand));
                 m.SetFloat("_TintFalloff", SliderToShaderValue(tintBaseTexVFalloff));
                 m.SetFloat("_TintHue", SliderToShaderValue(tintHue));
@@ -187,12 +236,22 @@ namespace Tinter
                 m.SetFloat("_TintSatThreshold", shaderTBTST);
 
                 float shaderSatFalloff = Saturate(shaderTBTST * 0.75f);
-                m.SetFloat("_SaturationFalloff", shaderSatFalloff );
+                m.SetFloat("_SaturationFalloff", shaderSatFalloff);
 
                 m.SetFloat("_SaturationWindow", shaderTBTST - shaderSatFalloff);
                 m.SetFloat("_GlossMult", tintGloss * 0.01f);
             }
+
+            foreach (Part p in part.symmetryCounterparts.ToArray())
+                p.Modules.OfType<Tinter>().FirstOrDefault().SymmetryUpdate();
         }
+
+        public void SymmetryUpdate()
+        {
+            needUpdate = true;
+        }
+
+        //
 
         public void Update()
         {
@@ -230,10 +289,9 @@ namespace Tinter
 
         public override void OnUpdate()
         {
-            if( needUpdate )
-            {
-                needUpdate = false;
-                TDebug.Print("OnUpdate(): needUpdate set " + this.part.name);
+          {
+ //               needUpdate = false;
+               TDebug.Print("OnUpdate(): needUpdate set " + this.part.name);
             }
         }
 

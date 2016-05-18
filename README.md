@@ -7,3 +7,5 @@ This is the first thing I've ever done in C#, the first thing I've ever coded in
 since I last used Delphi ( and the first bit of code in anything for a couple of years, it's surprising how easy you forget ).
 
 So, it's probably going to be awful.
+
+License: All Rights Reserved. Including the right to change the license at any time.

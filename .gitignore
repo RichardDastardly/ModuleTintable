@@ -6,7 +6,21 @@
 *.user
 *.userosscache
 *.sln.docstates
-[Uu]nity/
+[Uu]nity/PartTinter/Library/
+[Uu]nity/PartTinter/ProjectSettings/
+[Uu]nity/PartTinter/Temp/
+[Uu]nity/PartTinter/test_Data/
+[Uu]nity/PartTinter/.vs/
+[Uu]nity/PartTinter/Assets/*.*
+[Uu]nity/PartTinter/Assets/Plugins/
+[Uu]nity/PartTinter/Assets/SquadCore/
+[Uu]nity/PartTinter/Assets/XML/
+[Uu]nity/PartTinter/Assets/PartTinter/*.*
+[Uu]nity/PartTinter/Assets/PartTinter/Materials/
+[Uu]nity/PartTinter/*.exe
+[Uu]nity/PartTinter/*.sln
+[Uu]nity/PartTinter/*.pdb
+
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs

@@ -90,8 +90,8 @@ namespace Tinter
         public float tintValue = 0;
 
         [KSPField(isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Glossiness"),
-          UI_FloatRange(affectSymCounterparts = UI_Scene.Editor, minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
-        public float tintGloss = 1;
+          UI_FloatRange(affectSymCounterparts = UI_Scene.Editor, minValue = 0, maxValue = 100, stepIncrement = 1, scene = UI_Scene.Editor)]
+        public float tintGloss = 100;
 
         private void ToggleFields( bool flag )
         {
@@ -190,7 +190,7 @@ namespace Tinter
                 m.SetFloat("_SaturationFalloff", shaderSatFalloff );
 
                 m.SetFloat("_SaturationWindow", shaderTBTST - shaderSatFalloff);
-                m.SetFloat("_Glossiness", tintGloss);
+                m.SetFloat("_GlossMult", tintGloss * 0.01f);
             }
         }
 

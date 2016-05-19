@@ -12,6 +12,7 @@ namespace Tinter
     {
         // Shaders
         private static Dictionary<string, Shader> Shaders = new Dictionary<string, Shader>();
+        private static List<string> ReplacementShaderNames = new List<string>();
 
         public static bool shadersLoaded { get; private set; } = false;
 
@@ -23,13 +24,20 @@ namespace Tinter
                 return null;
 
             Shader rval;
-            TDebug.Print("Attempting to fetch replacement shader for " + KSPShader.Substring(4));
+ //           TDebug.Print("Attempting to fetch replacement shader for " + KSPShader.Substring(4));
             // assume shader string passed in is "KSP/<shader>" for now
             if( Shaders.TryGetValue(KSPShader.Substring(4), out rval))
             {
                 return rval;
             }
             return null;
+        }
+
+        public static bool IsReplacementShader( string KSPShader )
+        {
+            if (!shadersLoaded)
+                return false;
+            return ReplacementShaderNames.Contains(KSPShader);
         }
 
         // the proper loader is bugged! so surprised. Time to cobble together something, mostly cribbed
@@ -61,8 +69,9 @@ namespace Tinter
                     string ShaderShortName = BundleShaders[i].name.Substring(11);
                     // this is horribly inflexible, improve it later
 
-                    TDebug.Print("Loading shader " + BundleShaders[i].name + " as "+ShaderShortName);
+//                    TDebug.Print("Loading shader " + BundleShaders[i].name + " as "+ShaderShortName);
                     Shaders.Add(ShaderShortName, BundleShaders[i] );
+                    ReplacementShaderNames.Add(BundleShaders[i].name);
                 }
             }
             shadersLoaded = true;
@@ -76,12 +85,12 @@ namespace Tinter
 
         public void Start()
         {
-            TDebug.Print("AssetLoader.Start() - grepping and loading shaders");
+//            TDebug.Print("AssetLoader.Start() - grepping and loading shaders");
 
             var assemblyFile = Assembly.GetExecutingAssembly().Location;
             var BundlePath = "file://" + assemblyFile.Replace(new FileInfo(assemblyFile).Name, "").Replace("\\", "/");
 
-            TDebug.Print("Loading bundles from BundlePath: " + BundlePath);
+//            TDebug.Print("Loading bundles from BundlePath: " + BundlePath);
 
             //need to clean cache
             Caching.CleanCache();

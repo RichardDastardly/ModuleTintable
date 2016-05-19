@@ -28,15 +28,73 @@ namespace Tinter
         }
     }
 
+    [KSPAddon(KSPAddon.Startup.EditorAny, true)]
+    public static class ClipBoard
+    {
+        static float BlendPoint = 0;
+        static float Band = 0;
+        static float Falloff = 0;
+        static float Threshold = 0;
+        static float Hue = 0;
+        static float Saturation = 0;
+        static float Value = 0;
+        static float Gloss = 0;
+
+        public static void Copy(Tinter t)
+        {
+            BlendPoint = t.tintBlendPoint;
+            Band = t.tintBaseTexVBand;
+            Falloff = t.tintBaseTexVFalloff;
+            Threshold = t.tintBaseTexSatThreshold;
+            Hue = t.tintHue;
+            Saturation = t.tintSaturation;
+            Value = t.tintValue;
+            Gloss = t.tintGloss;
+        }
+
+        public static void Paste(Tinter t)
+        {
+            t.tintBlendPoint = BlendPoint;
+            t.tintBaseTexVBand = Band;
+            t.tintBaseTexVFalloff = Falloff;
+            t.tintBaseTexSatThreshold = Threshold;
+            t.tintHue = Hue;
+            t.tintSaturation = Saturation;
+            t.tintValue = Value;
+            t.tintGloss = Gloss;
+        }
+    }
+
     public class Tinter : PartModule
     {
+
+        /* Reference
+         * 
+         * Game load:
+         * Constructor -> OnAwake -> OnLoad -> GetInfo
+         * prefab clone:
+         * Constructor -> OnAwake
+         * 
+         * Editor new instance:
+         * Constructor -> OnAwake -> OnStart -> OnSave
+         * 
+         * Vessel load:
+         * Constructor -> OnAwake -> OnLoad -> OnSave -> OnStart
+         * 
+         * Craft Launch
+         * Constructor -> OnAwake -> OnLoad ( from craft file ) -> OnSave -> OnStart -> OnActive -> On[Fixed]Update
+         * 
+         * Craft switch via tracking:
+         * Constructor -> OnAwake -> OnLoad ( from persistence ) -> OnStart -> OnActive -> On[Fixed]Update
+         */
 
         private bool active = false;
         private bool needUpdate = false;
         private bool needShaderReplacement = true;
+        private bool isSymmetryCounterpart = false;
 
         private List<Material> ManagedMaterials = new List<Material>();
-
+/*
         private void EditorPartEvent( ConstructionEventType cEvent, Part part )
         {
  //           if (cEvent != ConstructionEventType.PartTweaked) return;
@@ -47,14 +105,8 @@ namespace Tinter
         {
             TDebug.Print(part.name + " ship event "+ cEvent.ToString());
         }
-
-        private void onTweakableChange(BaseField field, object what )
-        {
-            needUpdate = true;
- //          UpdateShaderValues();
-//            TDebug.Print(part.name + " tweakable slider changed");
-        }
-
+ */
+ 
         [KSPField(isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Blend Value"),
             UI_FloatRange(
                 affectSymCounterparts = UI_Scene.Editor,
@@ -93,41 +145,6 @@ namespace Tinter
           UI_FloatRange(affectSymCounterparts = UI_Scene.Editor, minValue = 0, maxValue = 100, stepIncrement = 1, scene = UI_Scene.Editor)]
         public float tintGloss = 100;
 
-        private static class ClipBoard 
-        {
-            static float BlendPoint = 0;
-            static float Band = 0;
-            static float Falloff = 0;
-            static float Threshold = 0;
-            static float Hue = 0;
-            static float Saturation = 0;
-            static float Value = 0;
-            static float Gloss = 0;
-
-            public static void Copy( Tinter t )
-            {
-                BlendPoint = t.tintBlendPoint;
-                Band = t.tintBaseTexVBand;
-                Falloff = t.tintBaseTexVFalloff;
-                Threshold = t.tintBaseTexSatThreshold;
-                Hue = t.tintHue;
-                Saturation = t.tintSaturation;
-                Value = t.tintValue;
-                Gloss = t.tintGloss;
-            }
-
-            public static void Paste( Tinter t )
-            {
-                t.tintBlendPoint = BlendPoint;
-                t.tintBaseTexVBand = Band;
-                t.tintBaseTexVFalloff = Falloff;
-                t.tintBaseTexSatThreshold = Threshold;
-                t.tintHue = Hue;
-                t.tintSaturation = Saturation;
-                t.tintValue = Value;
-                t.tintGloss = Gloss;
-            }
-        }
 
         [KSPEvent(guiActiveEditor = true, guiName = "Copy colour settings")]
         public void CopytoClipboard()
@@ -141,6 +158,12 @@ namespace Tinter
             ClipBoard.Paste(this);
             needUpdate = true;
         }
+
+        private void onTweakableChange(BaseField field, object what)
+        {
+            needUpdate = true;
+        }
+
 
         private void ToggleFields( bool flag )
         {
@@ -179,14 +202,19 @@ namespace Tinter
             }
 
             var Materials = new List<Material>();
-            
+
             // messy messy, tidy
-            foreach ( Renderer r in GetComponentsInChildren<MeshRenderer>(true))
+            // also can't remember why not to use foreach, but I'm sure there was something
+
+            MeshRenderer[] r = GetComponentsInChildren<MeshRenderer>(true);
+            for ( int i = 0; i < r.Length; i++ )
             {
-                Materials.AddRange(r.materials);
+                Materials.AddRange(r[i].materials);
             }
-            foreach( Material m in Materials.ToArray())
+
+            for( int i = 0; i < Materials.Count; i++ )
             {
+                Material m = Materials[i];
                 TDebug.Print(part.name + " material " + m.name);
                 var replacementShader = AssetLoader.FetchRepacementShader(m.shader.name);
                 if (replacementShader)
@@ -224,7 +252,7 @@ namespace Tinter
         {
             foreach (Material m in ManagedMaterials.ToArray())
             {
-                TDebug.Print(part.name + "Updating material " + m.name);
+                TDebug.Print(part.name + " updating material " + m.name);
                 m.SetFloat("_TintPoint", SliderToShaderValue(tintBlendPoint));
                 m.SetFloat("_TintBand", SliderToShaderValue(tintBaseTexVBand));
                 m.SetFloat("_TintFalloff", SliderToShaderValue(tintBaseTexVFalloff));
@@ -242,61 +270,51 @@ namespace Tinter
                 m.SetFloat("_GlossMult", tintGloss * 0.01f);
             }
 
-            foreach (Part p in part.symmetryCounterparts.ToArray())
-                p.Modules.OfType<Tinter>().FirstOrDefault().SymmetryUpdate();
+            if(isSymmetryCounterpart)
+            {
+                isSymmetryCounterpart = false;
+                return;
+            }
+
+            Part[] p = part.symmetryCounterparts.ToArray();
+            for ( int i = 0; i < p.Length; i++ )
+                p[i].Modules.GetModule<Tinter>().SymmetryUpdate();
         }
 
         public void SymmetryUpdate()
         {
             needUpdate = true;
+            active = true;
+            isSymmetryCounterpart = true;
         }
 
         //
 
-        public void Update()
+        // hopefully this might cure editor cloning awkwardness
+        public Tinter()
         {
-            if( needUpdate )
-            {
-                needUpdate = false;
-  //              TDebug.Print("Update() - updating shader values");
-                UpdateShaderValues();
-                // update shader values
-            }
+            active = false;
+            needShaderReplacement = true;
         }
+
 
         public override void OnStart(StartState state)
         {
             base.OnStart(state);
+            part.OnEditorAttach += new Callback(OnEditorAttach);
             TweakFieldSetup();
             TraverseAndReplaceShaders();
-            TDebug.Print("OnStart() [" + part.name + "]" );
+            TDebug.Print("OnStart() [" + part.name + "]");
         }
 
-        public void Start()
-        {
-            this.part.OnEditorAttach += new Callback(OnEditorAttach);
-  //          GameEvents.onEditorPartEvent.Add(EditorPartEvent);
-  //          GameEvents.onEditorShipModified.Add(EditorShipEvent);
-            TDebug.Print("Start() [" + this.part.name + "]");
-        }
+//        private void OnDestroy()
+ //       {
+ //       }
 
-        private void OnDestroy()
-        {
-  //          GameEvents.onEditorPartEvent.Remove(EditorPartEvent);
- //           GameEvents.onEditorShipModified.Remove(EditorShipEvent);
-        }
-
-
-        public override void OnUpdate()
-        {
-          {
- //               needUpdate = false;
-               TDebug.Print("OnUpdate(): needUpdate set " + this.part.name);
-            }
-        }
 
         public void OnEditorAttach()
         {
+            ToggleFields(active);
             TDebug.Print("Editor - attach [" + this.part.name + "]");
         }
 
@@ -311,6 +329,18 @@ namespace Tinter
             base.OnLoad(node);
             TDebug.Print("OnLoad() [" + this.part.name + "]");
             TraverseAndReplaceShaders();
+        }
+
+
+        public override void OnUpdate()
+        {
+            if (needUpdate)
+            {
+                needUpdate = false;
+                //              TDebug.Print("Update() - updating shader values");
+                UpdateShaderValues();
+                // update shader values
+            }
         }
 
         public void Setup()

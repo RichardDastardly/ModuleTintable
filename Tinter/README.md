@@ -8,6 +8,8 @@ since I last used Delphi ( and the first bit of code in anything for a couple of
 
 So, it's probably going to be awful.
 
+--
+
 Current issues:
 
 - Loading saved craft into the editor is all sorts of wonky - changing part colours can update other parts visually, only they're not *really* updated.

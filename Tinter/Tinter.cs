@@ -174,7 +174,7 @@ namespace Tinter
         {
             needUpdate = true;
         }
-
+       
 
         private void ToggleFields(bool flag)
         {
@@ -183,6 +183,13 @@ namespace Tinter
                 if (Fields[i].category == "TintMenu")
                 {
                     Fields[i].guiActiveEditor = flag;
+                }
+            }
+            for (int i = 0; i < Events.Count; i++)
+            {
+                if (Events[i].category == "TintMenu")
+                {
+                    Events[i].guiActiveEditor = flag;
                 }
             }
         }
@@ -229,8 +236,6 @@ namespace Tinter
 
             // messy messy, tidy
             // also can't remember why not to use foreach, but I'm sure there was something
-
-            // on loading into the editor all child components in the part tree are inserted into the gameobject tree?
 
             MeshRenderer[] r = part.FindModelComponents<MeshRenderer>();
             for ( int i = 0; i < r.Length; i++ )

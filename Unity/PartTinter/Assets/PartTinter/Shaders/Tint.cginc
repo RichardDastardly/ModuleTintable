@@ -51,16 +51,17 @@ float _GlossMult;
 			return float3(HCV.x, S, HCV.z);
 		}
 
-		fixed4 LightingNormalizedBlinnPhong(SurfaceOutput s, fixed3 lightDir, fixed3 halfDir, fixed atn)
+		fixed4 LightingNormalizedBlinnPhong(SurfaceOutput s, half3 lightDir, half3 viewDir, fixed atn)
 		{
-			fixed3 nN = normalize(s.Normal);
+			half3 nN = normalize(s.Normal);
+			half3 halfDir = normalize(lightDir + viewDir);
 
-			fixed diff = max(0, dot(nN, lightDir));
+			half diff = max(0, dot(nN, lightDir));
 			fixed nh = max(0, dot(nN, halfDir));
 			fixed spec = pow(nh, s.Specular * 128) * s.Gloss;
 
 			fixed4 c;
-			c.rgb = _LightColor0.rgb * (s.Albedo * diff + spec) * atn;
+			c.rgb = (_LightColor0.rgb * s.Albedo * diff + _LightColor0.rgb * spec ) * atn;
 			UNITY_OPAQUE_ALPHA(c.a);
 			return c;
 		}

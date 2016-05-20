@@ -230,7 +230,9 @@ namespace Tinter
             // messy messy, tidy
             // also can't remember why not to use foreach, but I'm sure there was something
 
-            MeshRenderer[] r = GetComponentsInChildren<MeshRenderer>(true);
+            // on loading into the editor all child components in the part tree are inserted into the gameobject tree?
+
+            MeshRenderer[] r = part.FindModelComponents<MeshRenderer>();
             for ( int i = 0; i < r.Length; i++ )
             {
                 Materials.AddRange(r[i].materials);
@@ -245,13 +247,13 @@ namespace Tinter
                 var replacementShader = AssetLoader.FetchRepacementShader(m.shader.name);
                 if (replacementShader)
                 {
-                    TDebug.Print(part.name+ " Replacing shader " + m.shader.name + " with " + replacementShader.name);
+ //                   TDebug.Print(part.name+ " Replacing shader " + m.shader.name + " with " + replacementShader.name);
                     m.shader = replacementShader;
                     manageThisMaterial = true;
                 }
                 else if ( AssetLoader.IsReplacementShader( m.shader.name ))
                 {
-                    TDebug.Print(part.name + " Shader already replaced, flagging mat for management");
+  //                  TDebug.Print(part.name + " Shader already replaced, flagging mat for management");
                     manageThisMaterial = true;
                 }
 
@@ -269,14 +271,6 @@ namespace Tinter
             ToggleFields(active);
             needShaderReplacement = false;
         }
-
-  //      float _TintHue;
-  //      float _TintSat;
-   //     float _TintVal;
-   //     float _TintPoint;
-   //     float _TintBand;
-   //     float _TintFalloff;
-   //     float _TintSatThreshold;
 
         private float SliderToShaderValue( float v )
         {

@@ -12,9 +12,8 @@ So, it's probably going to be awful.
 
 Current issues:
 
-- Loading saved craft into the editor is all sorts of wonky - changing part colours can update other parts visually, only they're not *really* updated.
-- Light direction appears to be from straight up no matter where the sun is - not sure if that's me or KSP.
-- Probably others, not like I've done much exhaustive testing yet.
+- Probably a heap of stuff I haven't found.
+- Shader needs some work.
 
 License: All Rights Reserved. Including the right to change the license at any time.
 

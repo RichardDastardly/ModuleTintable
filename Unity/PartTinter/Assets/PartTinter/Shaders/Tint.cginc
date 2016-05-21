@@ -61,13 +61,14 @@ float _GlossMult;
 			fixed spec = pow(nh, s.Specular * 128) * s.Gloss;
 
 			fixed4 c;
-			c.rgb = (_LightColor0.rgb * s.Albedo * diff + _LightColor0.rgb * spec ) * atn;
+			c.rgb = ((_LightColor0.rgb * s.Albedo * diff )+ (_LightColor0.rgb * spec )) * atn;
 			UNITY_OPAQUE_ALPHA(c.a);
 			return c;
 		}
 
 // General function to get blending value
 // needs refining/refactoring, but works. Not sure why it needs so many saturates, didn't when I was working it out...
+		// replace the function with a macro when satisfied
 
 		float BlendFactor(in float3 Colour)
 		{

@@ -1,15 +1,15 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Reflection;
-using System.Linq;
-using System.Text;
+﻿using System.Collections.Generic;
 using UnityEngine;
+
+// please bear in mind I don't know any better yet.
 
 namespace Tinter
 {
+    #region TDebug
     public static class TDebug
     {
         // debugging stuff from the start! how novel
+        // dump this when we're done
         public static string dbgTag = "[Tinter] ";
 
         public static void Print(string dbgString)
@@ -27,55 +27,120 @@ namespace Tinter
             Debug.LogError(dbgTag + dbgString);
         }
     }
+    #endregion
 
+    #region ColourSet
+    public class ColourSet
+    {
+        private Dictionary<string, float> Settings = new Dictionary<string, float>();
+
+        private void InitialiseSettings()
+        {
+            Settings["BlendPoint"] = 0f;
+            Settings["BlendBand"] = 0f;
+            Settings["BlendFalloff"] = 0f;
+            Settings["BlendSaturationThreshold"] = 0f;
+            Settings["Hue"] = 0f;
+            Settings["Saturation"] = 0f;
+            Settings["Value"] = 0f;
+            Settings["Glossiness"] = 0f;
+            Settings["Specular"] = 0f;
+            // possibly add spec falloff & surface roughness later
+        }
+
+        public ColourSet()
+        {
+            InitialiseSettings();
+        }
+
+        public ColourSet( ColourSet clone )
+        {
+            InitialiseSettings();
+            CloneFromColourSet(clone);
+        }
+
+        public float? Get(string k)
+        {
+            try
+            {
+                return Settings[k];
+            }
+            catch (KeyNotFoundException)
+            {
+                return null;
+            }
+        }
+
+        public void Set(string k, float v)
+        {
+            if(Settings.ContainsKey(k))
+            {
+                Settings[k] = v;
+                return;
+            }
+            return;
+        }
+
+        public void CloneIntoColourSet( ColourSet t)
+        {
+            foreach(KeyValuePair<string, float> kv in Settings)
+            {
+                t.Set(kv.Key, kv.Value);
+            }
+        }
+
+        public void CloneFromColourSet( ColourSet t)
+        {
+
+            List<string> keys = new List<string>(Settings.Keys);
+            foreach(string k in keys )
+            {
+                Settings[k] = t.Get(k) ?? 0f;
+            }
+        }
+    }
+    #endregion
+
+    #region Clipboard
+    // check how GC & static fields really interact at some point, would be better to do this in the partmodule.
     [KSPAddon(KSPAddon.Startup.EditorAny, true)]
     public class ClipBoard : MonoBehaviour
     {
-        static float BlendPoint = 0;
-        static float Band = 0;
-        static float Falloff = 0;
-        static float Threshold = 0;
-        static float Hue = 0;
-        static float Saturation = 0;
-        static float Value = 0;
-        static float Gloss = 0;
 
-        static bool _used = false;
+        static List<ColourSet> colourSets = new List<ColourSet>();
 
-        public static void Copy(Tinter t)
+        public static void Copy(List<ColourSet> t)
         {
-            BlendPoint = t.tintBlendPoint;
-            Band = t.tintBaseTexVBand;
-            Falloff = t.tintBaseTexVFalloff;
-            Threshold = t.tintBaseTexSatThreshold;
-            Hue = t.tintHue;
-            Saturation = t.tintSaturation;
-            Value = t.tintValue;
-            Gloss = t.tintGloss;
+            // destroy old ColourSets
+            colourSets.Clear(); // does this call the destructor of each element?
 
-            _used = true;
+            for( int i = 0; i < t.Count; i++ )
+            {
+                colourSets.Add(new ColourSet( t[i]));
+            }
         }
 
-        public static void Paste(Tinter t)
+        public static void Paste(List<ColourSet> t)
         {
-            if (!_used)
-                return;
-
-            t.tintBlendPoint = BlendPoint;
-            t.tintBaseTexVBand = Band;
-            t.tintBaseTexVFalloff = Falloff;
-            t.tintBaseTexSatThreshold = Threshold;
-            t.tintHue = Hue;
-            t.tintSaturation = Saturation;
-            t.tintValue = Value;
-            t.tintGloss = Gloss;
+            t.Clear();
+            for( int i = 0; i < colourSets.Count;i++ )
+            {
+                t.Add(new ColourSet(colourSets[i]));
+            }
         }
 
         private void Start()
         {
             TDebug.Print("Clipboard started");
         }
+
+        private void OnDestroy()
+        {
+            colourSets.Clear();
+            TDebug.Print("Clipboard destroyed");
+        }
     }
+    #endregion
 
     public class Tinter : PartModule
     {
@@ -100,125 +165,96 @@ namespace Tinter
          * Constructor -> OnAwake -> OnLoad ( from persistence ) -> OnStart -> OnActive -> On[Fixed]Update
          */
 
+        #region Vars
         private bool active = false;
         private bool needUpdate = false;
         private bool needShaderReplacement = true;
         private bool isSymmetryCounterpart = false;
 
-        private List<Material> ManagedMaterials = new List<Material>();
-        /*
-                private void EditorPartEvent( ConstructionEventType cEvent, Part part )
-                {
-         //           if (cEvent != ConstructionEventType.PartTweaked) return;
-                    TDebug.Print(part.name + "  event "+ cEvent.ToString());
-                }
+        private List<ColourSet> colourSets = new List<ColourSet>();
+        private int colourSetIndex = 0;
 
-                private void EditorShipEvent( ShipConstruct cEvent )
-                {
-                    TDebug.Print(part.name + " ship event "+ cEvent.ToString());
-                }
-         */
+        private List<Material> ManagedMaterials = new List<Material>();
 
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Blend Value"),
-            UI_FloatRange(
-                minValue = 0,
-                maxValue = 255,
-                stepIncrement = 1,
-                scene = UI_Scene.Editor
-        )]
-        public float tintBlendPoint = 0;
+            UI_FloatRange(minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
+        public float tintUIBlendPoint = 0;
 
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Blend Band"),
          UI_FloatRange(minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
-        public float tintBaseTexVBand = 0;
+        public float tintUIBlendBand = 0;
 
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Blend Falloff"),
          UI_FloatRange( minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
-        public float tintBaseTexVFalloff = 0;
+        public float tintUIBlendFalloff = 0;
 
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Blend Saturation Threshold"),
          UI_FloatRange( minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
-        public float tintBaseTexSatThreshold = 0;
+        public float tintUIBlendSaturationThreshold = 0;
 
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Tint Hue"),
           UI_FloatRange( minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
-        public float tintHue = 0;
+        public float tintUIHue = 0;
 
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Tint Saturation"),
           UI_FloatRange(minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
-        public float tintSaturation = 0;
+        public float tintUISaturation = 0;
 
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Tint Value"),
           UI_FloatRange( minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
-        public float tintValue = 0;
+        public float tintUIValue = 0;
 
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Glossiness"),
           UI_FloatRange( minValue = 0, maxValue = 100, stepIncrement = 1, scene = UI_Scene.Editor)]
-        public float tintGloss = 100;
+        public float tintUIGloss = 100;
 
 
-        [KSPEvent(category = "TintMenu", guiActiveEditor = true, guiName = "Copy colour settings")]
+        [KSPEvent(guiActive = false, guiActiveEditor = true, guiName = "Copy colour settings")]
         public void CopytoClipboard()
         {
-            ClipBoard.Copy(this);
+            ClipBoard.Copy(colourSets);
         }
 
-        [KSPEvent(category = "TintMenu", guiActiveEditor = true, guiName = "Paste colour settings")]
+        [KSPEvent(guiActive = false, guiActiveEditor = true, guiName = "Paste colour settings")]
         public void PastefromClipboard()
         {
-            ClipBoard.Paste(this);
+            ClipBoard.Paste(colourSets);
+            colourSetIndex = (colourSetIndex > colourSets.Count) ? 0 : colourSetIndex;
+            ColourSetToUI(colourSets[colourSetIndex]);
             needUpdate = true;
         }
+        #endregion
 
+        #region Private
         private void onTweakableChange(BaseField field, object what)
         {
             needUpdate = true;
         }
-       
 
-        private void ToggleFields(bool flag)
+        private void AttachGuiFields()
         {
             for (int i = 0; i < Fields.Count; i++)
             {
-                if (Fields[i].category == "TintMenu")
-                {
-                    Fields[i].guiActiveEditor = flag;
-                }
-            }
-            for (int i = 0; i < Events.Count; i++)
-            {
-                if (Events[i].category == "TintMenu")
-                {
-                    Events[i].guiActiveEditor = flag;
-                }
-            }
-        }
-
-        private void TweakFieldSetup()
-        {
-            for (int i = 0; i < Fields.Count; i++)
-            {
-
                 var uiField = Fields[i].uiControlEditor;
                 if (uiField.GetType().FullName == "UI_FloatRange")
                 {
-                    //                    TDebug.Print("Setting onFieldChange for " + Fields[i].guiName );
                     uiField.onFieldChanged = onTweakableChange;
                 }
             }
         }
 
-        public void CloneValuesFrom(Tinter t)
+        private void ToggleFields(bool flag)
         {
-//           TDebug.Print("Symmetry cloning values to " + t.name);
-            tintBlendPoint = t.tintBlendPoint;
-            tintBaseTexVBand = t.tintBaseTexVBand;
-            tintBaseTexVFalloff = t.tintBaseTexVFalloff;
-            tintBaseTexSatThreshold = t.tintBaseTexSatThreshold;
-            tintHue = t.tintHue;
-            tintSaturation = t.tintSaturation;
-            tintValue = t.tintValue;
-            tintGloss = t.tintGloss;
+            for (int i = 0; i < Fields.Count; i++)
+            {
+                var uiField = Fields[i].uiControlEditor;
+                if (uiField != null && uiField.GetType().FullName == "UI_FloatRange")
+                {
+                    Fields[i].guiActiveEditor = flag;
+                }
+            }
+            Events["CopytoClipboard"].guiActiveEditor = flag;
+            Events["PastefromClipboard"].guiActiveEditor = flag;
         }
 
         private void TraverseAndReplaceShaders()
@@ -247,18 +283,15 @@ namespace Tinter
             {
                 bool manageThisMaterial = false;
                 Material m = Materials[i];
-//                TDebug.Print(part.name + " material " + m.name);
 
                 var replacementShader = AssetLoader.FetchRepacementShader(m.shader.name);
                 if (replacementShader)
                 {
- //                   TDebug.Print(part.name+ " Replacing shader " + m.shader.name + " with " + replacementShader.name);
                     m.shader = replacementShader;
                     manageThisMaterial = true;
                 }
                 else if ( AssetLoader.IsReplacementShader( m.shader.name ))
                 {
-  //                  TDebug.Print(part.name + " Shader already replaced, flagging mat for management");
                     manageThisMaterial = true;
                 }
 
@@ -273,17 +306,14 @@ namespace Tinter
                 needUpdate = true;
             }
 
-            ToggleFields(active);
             needShaderReplacement = false;
         }
 
-        private float SliderToShaderValue( float v )
-        {
+        private static float SliderToShaderValue( float v ) {
             return v / 255;
         }
 
-        private float Saturate( float v )
-        {
+        private static float Saturate( float v ) {
             return Mathf.Clamp01(v);
         }
 
@@ -292,23 +322,24 @@ namespace Tinter
 
             foreach (Material m in ManagedMaterials.ToArray())
             {
- //               TDebug.Print(part.name + " updating material " + m.name);
-                m.SetFloat("_TintPoint", SliderToShaderValue(tintBlendPoint));
-                m.SetFloat("_TintBand", SliderToShaderValue(tintBaseTexVBand));
-                m.SetFloat("_TintFalloff", SliderToShaderValue(tintBaseTexVFalloff));
-                m.SetFloat("_TintHue", SliderToShaderValue(tintHue));
-                m.SetFloat("_TintSat", SliderToShaderValue(tintSaturation));
-                m.SetFloat("_TintVal", SliderToShaderValue(tintValue));
+                m.SetFloat("_TintPoint", SliderToShaderValue(tintUIBlendPoint));
+                m.SetFloat("_TintBand", SliderToShaderValue(tintUIBlendBand));
+                m.SetFloat("_TintFalloff", SliderToShaderValue(tintUIBlendFalloff));
+                m.SetFloat("_TintHue", SliderToShaderValue(tintUIHue));
+                m.SetFloat("_TintSat", SliderToShaderValue(tintUISaturation));
+                m.SetFloat("_TintVal", SliderToShaderValue(tintUIValue));
 
-                float shaderTBTST = SliderToShaderValue(tintBaseTexSatThreshold);
+                float shaderTBTST = SliderToShaderValue(tintUIBlendSaturationThreshold);
                 m.SetFloat("_TintSatThreshold", shaderTBTST);
 
                 float shaderSatFalloff = Saturate(shaderTBTST * 0.75f);
                 m.SetFloat("_SaturationFalloff", shaderSatFalloff);
 
                 m.SetFloat("_SaturationWindow", shaderTBTST - shaderSatFalloff);
-                m.SetFloat("_GlossMult", tintGloss * 0.01f);
+                m.SetFloat("_GlossMult", tintUIGloss * 0.01f);
             }
+
+            UIToColourSet(colourSets[colourSetIndex]);
 
             if(isSymmetryCounterpart)
             {
@@ -321,6 +352,47 @@ namespace Tinter
                 p[i].Modules.GetModule<Tinter>().SymmetryUpdate( this );
         }
 
+        private void UIToColourSet( ColourSet c)
+        {
+            c.Set("BlendPoint", tintUIBlendPoint);
+            c.Set("BlendBand", tintUIBlendBand);
+            c.Set("BlendFalloff", tintUIBlendFalloff);
+            c.Set("BlendSaturationThreshold", tintUIBlendSaturationThreshold);
+            c.Set("Hue", tintUIHue);
+            c.Set("Saturation", tintUISaturation);
+            c.Set("Value", tintUIValue);
+            c.Set("Glossiness", tintUIGloss);
+            // specular
+        }
+
+        private void ColourSetToUI(ColourSet c)
+        {
+            tintUIBlendPoint = c.Get("BlendPoint") ?? 0f;
+            tintUIBlendBand = c.Get("BlendBand" ) ?? 0f;
+            tintUIBlendFalloff = c.Get("BlendFalloff" ) ?? 0f;
+            tintUIBlendSaturationThreshold = c.Get("BlendSaturationThreshold" ) ?? 0f;
+            tintUIHue = c.Get("Hue" ) ?? 0f;
+            tintUISaturation = c.Get("Saturation" ) ?? 0f;
+            tintUIValue = c.Get("Value" ) ?? 0f;
+            tintUIGloss = c.Get("Glossiness" ) ?? 0f;
+        }
+        
+        #endregion
+
+
+        #region Counterparts
+        public void CloneValuesFrom(Tinter t)
+        {
+            tintUIBlendPoint = t.tintUIBlendPoint;
+            tintUIBlendBand = t.tintUIBlendBand;
+            tintUIBlendFalloff = t.tintUIBlendFalloff;
+            tintUIBlendSaturationThreshold = t.tintUIBlendSaturationThreshold;
+            tintUIHue = t.tintUIHue;
+            tintUISaturation = t.tintUISaturation;
+            tintUIValue = t.tintUIValue;
+            tintUIGloss = t.tintUIGloss;
+        }
+
         public void SymmetryUpdate(Tinter t )
         {
             CloneValuesFrom(t);
@@ -328,63 +400,58 @@ namespace Tinter
             active = true;
             isSymmetryCounterpart = true;
         }
+        #endregion
 
-        //
+        #region Public Unity
 
-        // hopefully this might cure editor cloning awkwardness
+        // why is the constructor being called twice
         public Tinter()
         {
             active = false;
             needShaderReplacement = true;
+//            TDebug.Print("Tinter constructor called");
+            
+            // belt & braces
+            if(colourSets.Count == 0 )
+                colourSets.Add(new ColourSet());
         }
-
 
         public override void OnStart(StartState state)
         {
             base.OnStart(state);
             part.OnEditorAttach += new Callback(OnEditorAttach);
-            TweakFieldSetup();
+            AttachGuiFields();
             TraverseAndReplaceShaders();
- //           TDebug.Print("OnStart() [" + part.name + "]");
+
+            if( HighLogic.LoadedSceneIsEditor )
+                ToggleFields(active);
         }
-
-//        private void OnDestroy()
- //       {
- //       }
-
 
         public void OnEditorAttach()
         {
             ToggleFields(active);
-//            TDebug.Print("Editor - attach [" + this.part.name + "]");
         }
 
         public override void OnSave(ConfigNode node)
         {
             base.OnSave(node);
- //           TDebug.Print("OnSave() [" + this.part.name + "]");
         }
 
         public override void OnLoad(ConfigNode node)
         {
             base.OnLoad(node);
- //           TDebug.Print("OnLoad() [" + this.part.name + "]");
+
+            // temporary, need to store coloursets in save files
+            UIToColourSet(colourSets[colourSetIndex]);
         }
 
-
-        public override void OnUpdate()
+        public void Update()
         {
             if (needUpdate)
             {
                 needUpdate = false;
-  //              TDebug.Print(part.name +" Update() - updating shader values");
                 UpdateShaderValues();
             }
-        }
-
-        public void Update() // OnUpdate() isn't called in the editor
-        {
-            OnUpdate();
         }
 
         public void Setup()
@@ -392,4 +459,5 @@ namespace Tinter
  //           TDebug.Print("Setup() [" + this.part.name + "]");
         }
      }
+    #endregion
 }

@@ -142,7 +142,7 @@ namespace Tinter
     }
     #endregion
 
-    public class Tinter : PartModule
+    public class ModuleTinter : PartModule
     {
 
         /* Reference
@@ -349,7 +349,7 @@ namespace Tinter
 
             Part[] p = part.symmetryCounterparts.ToArray();
             for ( int i = 0; i < p.Length; i++ )
-                p[i].Modules.GetModule<Tinter>().SymmetryUpdate( this );
+                p[i].Modules.GetModule<ModuleTinter>().SymmetryUpdate( this );
         }
 
         private void UIToColourSet( ColourSet c)
@@ -381,7 +381,7 @@ namespace Tinter
 
 
         #region Counterparts
-        public void CloneValuesFrom(Tinter t)
+        public void CloneValuesFrom(ModuleTinter t)
         {
             tintUIBlendPoint = t.tintUIBlendPoint;
             tintUIBlendBand = t.tintUIBlendBand;
@@ -393,7 +393,7 @@ namespace Tinter
             tintUIGloss = t.tintUIGloss;
         }
 
-        public void SymmetryUpdate(Tinter t )
+        public void SymmetryUpdate(ModuleTinter t )
         {
             CloneValuesFrom(t);
             needUpdate = true;
@@ -405,11 +405,11 @@ namespace Tinter
         #region Public Unity
 
         // why is the constructor being called twice
-        public Tinter()
+        public ModuleTinter()
         {
             active = false;
             needShaderReplacement = true;
-//            TDebug.Print("Tinter constructor called");
+//            TDebug.Print("ModuleTinter constructor called");
             
             // belt & braces
             if(colourSets.Count == 0 )

@@ -51,18 +51,19 @@ float _GlossMult;
 			return float3(HCV.x, S, HCV.z);
 		}
 
-		fixed4 LightingNormalizedBlinnPhong(SurfaceOutput s, fixed3 lightDir, fixed3 viewDir, fixed atn)
+		inline fixed4 LightingNormalizedBlinnPhong(SurfaceOutput s, half3 lightDir, half3 viewDir, half atn)
 		{
-			fixed3 nN = normalize(s.Normal);
+			fixed3 normalizedSurfNormal = normalize(s.Normal);
 			fixed3 halfDir = normalize(lightDir + viewDir);
 
-			fixed diff = max(0, dot(nN, lightDir));
-			fixed nh = max(0, dot(nN, halfDir));
+			fixed diff = max(0, dot(normalizedSurfNormal, lightDir));
+
+			fixed nh = max(0, dot(normalizedSurfNormal, halfDir));
 			fixed spec = pow(nh, s.Specular * 128) * s.Gloss;
 
 			fixed4 c;
-			c.rgb = ((_LightColor0.rgb * s.Albedo * diff )+ (_LightColor0.rgb * spec )) * atn;
-			UNITY_OPAQUE_ALPHA(c.a);
+			c.rgb = (_LightColor0.rgb * ((s.Albedo * diff) + (spec *_SpecColor.rgb))) * atn;
+			c.a = s.Alpha + _LightColor0.a * _SpecColor.a * spec * atn;
 			return c;
 		}
 
@@ -70,7 +71,7 @@ float _GlossMult;
 // needs refining/refactoring, but works. Not sure why it needs so many saturates, didn't when I was working it out...
 		// replace the function with a macro when satisfied
 
-		float BlendFactor(in float3 Colour)
+		inline float BlendFactor(in float3 Colour)
 		{
 			float3 asHSV = RGBtoHSV(Colour.rgb);
 

@@ -103,6 +103,8 @@ namespace Tinter
 
     #region Clipboard
     // check how GC & static fields really interact at some point, would be better to do this in the partmodule.
+
+    // copy rather than copyref colourset objects here so we don't trap complete partmodules
     [KSPAddon(KSPAddon.Startup.EditorAny, true)]
     public class ClipBoard : MonoBehaviour
     {
@@ -324,7 +326,9 @@ namespace Tinter
             {
                 m.SetFloat("_TintPoint", SliderToShaderValue(tintUIBlendPoint));
                 m.SetFloat("_TintBand", SliderToShaderValue(tintUIBlendBand));
-                m.SetFloat("_TintFalloff", SliderToShaderValue(tintUIBlendFalloff));
+
+                float tintFalloff = SliderToShaderValue(tintUIBlendFalloff);
+                m.SetFloat("_TintFalloff", (tintFalloff > 0 ) ? tintFalloff : 0.001f ); // we divide by this in the shader
                 m.SetFloat("_TintHue", SliderToShaderValue(tintUIHue));
                 m.SetFloat("_TintSat", SliderToShaderValue(tintUISaturation));
                 m.SetFloat("_TintVal", SliderToShaderValue(tintUIValue));
@@ -335,7 +339,7 @@ namespace Tinter
                 float shaderSatFalloff = Saturate(shaderTBTST * 0.75f);
                 m.SetFloat("_SaturationFalloff", shaderSatFalloff);
 
-                m.SetFloat("_SaturationWindow", shaderTBTST - shaderSatFalloff);
+                m.SetFloat("_SaturationWindow", shaderTBTST - shaderSatFalloff); // we divide by this in the shader too, but should only be 0 if the fraction is 0/0
                 m.SetFloat("_GlossMult", tintUIGloss * 0.01f);
             }
 
@@ -375,12 +379,14 @@ namespace Tinter
             tintUISaturation = c.Get("Saturation" ) ?? 0f;
             tintUIValue = c.Get("Value" ) ?? 0f;
             tintUIGloss = c.Get("Glossiness" ) ?? 0f;
+            // specular
         }
         
         #endregion
 
 
         #region Counterparts
+        // consider doing symmetry updates via the clipboard
         public void CloneValuesFrom(ModuleTinter t)
         {
             tintUIBlendPoint = t.tintUIBlendPoint;

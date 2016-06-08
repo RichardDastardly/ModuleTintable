@@ -23,12 +23,11 @@ Shader "KSP/Tinted Specular"
 		Tags { "RenderType"="Opaque" }
 		ZWrite On
 		ZTest LEqual
-//		Blend SrcAlpha OneMinusSrcAlpha 
-		Blend Off
+		Blend SrcAlpha OneMinusSrcAlpha 
 
 		CGPROGRAM
 
-		#pragma surface surf NormalizedBlinnPhong
+		#pragma surface surf NormalizedBlinnPhong keepalpha
 		#pragma target 3.0
 		
 		half _Shininess;

@@ -7,8 +7,8 @@
     <ProjectGuid>{7FD161FA-96A4-4D87-9480-CD718356BCCD}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>Tinter</RootNamespace>
-    <AssemblyName>Tinter</AssemblyName>
+    <RootNamespace>Tintable</RootNamespace>
+    <AssemblyName>ModuleTintable</AssemblyName>
     <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
   </PropertyGroup>
@@ -42,10 +42,8 @@
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
-    <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="System.Data" />
-    <Reference Include="System.Xml" />
     <Reference Include="UnityEngine">
       <HintPath>F:\Games\KSP\1.1\1.1_Stock\KSP_x64_Data\Managed\UnityEngine.dll</HintPath>
     </Reference>
@@ -55,7 +53,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AssetLoader.cs" />
-    <Compile Include="Tinter.cs" />
+    <Compile Include="ModuleTintable.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

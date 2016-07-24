@@ -1,16 +1,31 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using System.Reflection;
 using UnityEngine;
 
 // please bear in mind I don't know any better yet.
 
-namespace Tinter
+namespace Tintable
 {
+    #region Custom Attributes
+    [AttributeUsage(AttributeTargets.Field | AttributeTargets.Struct)]
+    public sealed class Section : Attribute
+    {
+        public int section = 1;
+
+        public Section(int section)
+        {
+            this.section = section;
+        }
+    }
+    #endregion
+
     #region TDebug
     public static class TDebug
     {
         // debugging stuff from the start! how novel
         // dump this when we're done
-        public static string dbgTag = "[Tinter] ";
+        public static string dbgTag = "[ModuleTintable] ";
 
         public static void Print(string dbgString)
         {
@@ -32,38 +47,34 @@ namespace Tinter
     #region ColourSet
     public class ColourSet
     {
-        private Dictionary<string, float> Settings = new Dictionary<string, float>();
-
-        private void InitialiseSettings()
+        private Dictionary<string, float> _Settings = new Dictionary<string, float>();
+        public Dictionary<string, float> Values
         {
-            Settings["BlendPoint"] = 0f;
-            Settings["BlendBand"] = 0f;
-            Settings["BlendFalloff"] = 0f;
-            Settings["BlendSaturationThreshold"] = 0f;
-            Settings["Hue"] = 0f;
-            Settings["Saturation"] = 0f;
-            Settings["Value"] = 0f;
-            Settings["Glossiness"] = 0f;
-            Settings["Specular"] = 0f;
-            // possibly add spec falloff & surface roughness later
+            get
+            {
+                return new Dictionary<string, float>(_Settings);
+            }
+            set
+            {
+                _Settings = new Dictionary<string, float>(value);
+            }
         }
 
-        public ColourSet()
-        {
-            InitialiseSettings();
-        }
+
+        private List<bool> SectionFlags = new List<bool>();
+
+        public ColourSet() { }
 
         public ColourSet( ColourSet clone )
         {
-            InitialiseSettings();
-            CloneFromColourSet(clone);
+            Values = clone.Values;
         }
 
         public float? Get(string k)
         {
             try
             {
-                return Settings[k];
+                return _Settings[k];
             }
             catch (KeyNotFoundException)
             {
@@ -73,30 +84,25 @@ namespace Tinter
 
         public void Set(string k, float v)
         {
-            if(Settings.ContainsKey(k))
-            {
-                Settings[k] = v;
-                return;
-            }
-            return;
+            _Settings[k] = v;
         }
 
+        public void SetSection( int section, bool flag )
+        {
+            while (section < SectionFlags.Count)
+                SectionFlags.Add(true);
+            SectionFlags[section] = flag;
+        }
+
+        // temp back compatible
         public void CloneIntoColourSet( ColourSet t)
         {
-            foreach(KeyValuePair<string, float> kv in Settings)
-            {
-                t.Set(kv.Key, kv.Value);
-            }
+            Values = t.Values;
         }
 
         public void CloneFromColourSet( ColourSet t)
         {
-
-            List<string> keys = new List<string>(Settings.Keys);
-            foreach(string k in keys )
-            {
-                Settings[k] = t.Get(k) ?? 0f;
-            }
+            t.Values = Values;
         }
     }
     #endregion
@@ -131,7 +137,7 @@ namespace Tinter
             }
         }
 
-        private void Start()
+        private void OnStart()
         {
             TDebug.Print("Clipboard started");
         }
@@ -144,7 +150,7 @@ namespace Tinter
     }
     #endregion
 
-    public class ModuleTinter : PartModule
+    public class ModuleTintable : PartModule
     {
 
         /* Reference
@@ -173,43 +179,72 @@ namespace Tinter
         private bool needShaderReplacement = true;
         private bool isSymmetryCounterpart = false;
 
-        private List<ColourSet> colourSets = new List<ColourSet>();
+        private List<ColourSet> colourSets; // a part may use more than one colourset depending if it has a blend mask
+                                        
+        // use RGB values of mask to blend different coloursets if it has one
+        [KSPField]
+        private string paintMask = null;
+
+        // should only be set in part config if there's a mask
+        [KSPField( isPersistant = true)]
+        private int paintableColours = 1;
+
+        // use RGBA channels as independent greyscale overlay
+        [KSPField]
+        private string aoMask = null;
+
+
         private int colourSetIndex = 0;
 
-        private List<Material> ManagedMaterials = new List<Material>();
+        private List<Material> ManagedMaterials;
 
+        private enum tintUISection : int { Blend, Colour, Surface, Overlay };
+        private List<bool> activeSections;
+
+        [Section(1)] // can't use enum here, grumble
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Blend Value"),
             UI_FloatRange(minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
         public float tintUIBlendPoint = 0;
 
+        [Section(1)]
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Blend Band"),
          UI_FloatRange(minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
         public float tintUIBlendBand = 0;
 
+        [Section(1)]
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Blend Falloff"),
          UI_FloatRange( minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
         public float tintUIBlendFalloff = 0;
 
+        [Section(1)]
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Blend Saturation Threshold"),
          UI_FloatRange( minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
         public float tintUIBlendSaturationThreshold = 0;
 
+        [Section(2)]
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Tint Hue"),
           UI_FloatRange( minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
         public float tintUIHue = 0;
 
+        [Section(2)]
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Tint Saturation"),
           UI_FloatRange(minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
         public float tintUISaturation = 0;
 
+        [Section(2)]
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Tint Value"),
           UI_FloatRange( minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
         public float tintUIValue = 0;
 
+        [Section(3)]
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Glossiness"),
           UI_FloatRange( minValue = 0, maxValue = 100, stepIncrement = 1, scene = UI_Scene.Editor)]
         public float tintUIGloss = 100;
 
+        [Section(3)]
+        [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Reflection tightness"),
+          UI_FloatRange(minValue = 0, maxValue = 100, stepIncrement = 1, scene = UI_Scene.Editor)]
+        public float tintUITightness = 100;
 
         [KSPEvent(guiActive = false, guiActiveEditor = true, guiName = "Copy colour settings")]
         public void CopytoClipboard()
@@ -224,6 +259,110 @@ namespace Tinter
             colourSetIndex = (colourSetIndex > colourSets.Count) ? 0 : colourSetIndex;
             ColourSetToUI(colourSets[colourSetIndex]);
             needUpdate = true;
+        }
+        #endregion
+
+
+        #region Reflection / field cache / GetSet methods
+
+        // consider abstracting this stuff a bit. Preferably consider doing something more sane.
+
+        private static Dictionary<string, FieldInfo> UIFields;
+        private static List<List<FieldInfo>> UISection;
+        private static bool structureCachePopulated = false;
+
+        private static void PopulateStructureCache( object obj )
+        {
+            if (structureCachePopulated)
+                return;
+
+            UIFields = new Dictionary<string, FieldInfo>();
+            UISection = new List<List<FieldInfo>>();
+
+            var _thisType = obj.GetType();
+            var _uiFields = _thisType.GetFields(BindingFlags.Instance);
+
+            for( int i = 0; i < _uiFields.Length; i++ )
+            {
+                if (Attribute.IsDefined(_uiFields[i], typeof(Section)))
+                {
+                    UIFields[_uiFields[i].Name] = _uiFields[i];
+                    var _fieldSectionAttr = (Section)Attribute.GetCustomAttribute(_uiFields[i], typeof(Section));
+
+                    while (UISection.Count <= _fieldSectionAttr.section)
+                        UISection.Add(new List<FieldInfo>());
+
+                    UISection[_fieldSectionAttr.section].Add(_uiFields[i]);
+                }
+            }
+            structureCachePopulated = true;
+        }
+
+
+        // these two need some work - creating lists just to dispose when you grab values is bad form
+        // All fields
+        public static List<string> GetTintFieldKeys()
+        {
+            return new List<string>(UIFields.Keys); // maybe just return (List<string>)UIFields.Keys ?
+        }
+
+        // only field names from a particular section
+        public static List<string> GetTintFieldKeys( int section )
+        {
+            if (section > UISection.Count || UISection[section] == null)
+                return null;
+
+            var SectionKeys = new List<string>();
+            for( int i = 0; i < UISection[section].Count; i++ )
+            {
+                SectionKeys.Add(UISection[section][i].Name);
+            }
+            return SectionKeys;
+        }
+
+        public Dictionary<string,float> GetTintFields()
+        {
+            var UIValues = new Dictionary<string,float>( UIFields.Count );
+            var _UIKeys = new List<string>(UIFields.Keys);
+            for( int i = 0; i < _UIKeys.Count; i++ )
+            {
+                UIValues[UIFields[_UIKeys[i]].Name] = (float)UIFields[_UIKeys[i]].GetValue(this);
+            }
+            return UIValues;
+        }
+
+        public Dictionary<string, float> GetTintFields( int section )
+        {
+            if ((section > UISection.Count )|| (UISection[section] == null))
+                return null;
+
+            var UIValues = new Dictionary<string, float>(UISection[section].Count);
+            for (int i = 0; i < UISection[section].Count; i++)
+            {
+                UIValues[UISection[section][i].Name] = (float)UISection[section][i].GetValue(this);
+            }
+            return UIValues;
+        }
+
+        public void SetTintFields( Dictionary<string,float> fieldData )
+        {
+            var _UIKeys = new List<string>(fieldData.Keys);
+            for ( int i = 0; i < fieldData.Count; i++ )
+            {
+                UIFields[_UIKeys[i]].SetValue(this, fieldData[_UIKeys[i]]);
+            }
+        }
+
+        public void SetTintFields( int section, Dictionary<string,float> fieldData )
+        {
+            if ((section > UISection.Count) || (UISection[section] == null))
+                return;
+
+            var _SectionKeys = GetTintFieldKeys(section);
+            for( int i = 0; i < _SectionKeys.Count; i++ )
+            {
+                UIFields[_SectionKeys[i]].SetValue(this, fieldData[_SectionKeys[i]]);
+            }
         }
         #endregion
 
@@ -255,8 +394,8 @@ namespace Tinter
                     Fields[i].guiActiveEditor = flag;
                 }
             }
-            Events["CopytoClipboard"].guiActiveEditor = flag;
-            Events["PastefromClipboard"].guiActiveEditor = flag;
+            Events[nameof(CopytoClipboard)].guiActiveEditor = flag;
+            Events[nameof(PastefromClipboard)].guiActiveEditor = flag;
         }
 
         private void TraverseAndReplaceShaders()
@@ -273,7 +412,6 @@ namespace Tinter
             var Materials = new List<Material>();
 
             // messy messy, tidy
-            // also can't remember why not to use foreach, but I'm sure there was something
 
             MeshRenderer[] r = part.FindModelComponents<MeshRenderer>();
             for ( int i = 0; i < r.Length; i++ )
@@ -322,8 +460,9 @@ namespace Tinter
         private void UpdateShaderValues()
         {
 
-            foreach (Material m in ManagedMaterials.ToArray())
+            for (int i = 0; i <  ManagedMaterials.Count; i++ ) 
             {
+                Material m = ManagedMaterials[i];
                 m.SetFloat("_TintPoint", SliderToShaderValue(tintUIBlendPoint));
                 m.SetFloat("_TintBand", SliderToShaderValue(tintUIBlendBand));
 
@@ -353,7 +492,7 @@ namespace Tinter
 
             Part[] p = part.symmetryCounterparts.ToArray();
             for ( int i = 0; i < p.Length; i++ )
-                p[i].Modules.GetModule<ModuleTinter>().SymmetryUpdate( this );
+                p[i].Modules.GetModule<ModuleTintable>().SymmetryUpdate( this );
         }
 
         private void UIToColourSet( ColourSet c)
@@ -387,7 +526,7 @@ namespace Tinter
 
         #region Counterparts
         // consider doing symmetry updates via the clipboard
-        public void CloneValuesFrom(ModuleTinter t)
+        public void CloneValuesFrom(ModuleTintable t)
         {
             tintUIBlendPoint = t.tintUIBlendPoint;
             tintUIBlendBand = t.tintUIBlendBand;
@@ -399,7 +538,7 @@ namespace Tinter
             tintUIGloss = t.tintUIGloss;
         }
 
-        public void SymmetryUpdate(ModuleTinter t )
+        public void SymmetryUpdate(ModuleTintable t )
         {
             CloneValuesFrom(t);
             needUpdate = true;
@@ -411,15 +550,28 @@ namespace Tinter
         #region Public Unity
 
         // why is the constructor being called twice
-        public ModuleTinter()
+        public ModuleTintable()
         {
             active = false;
             needShaderReplacement = true;
-//            TDebug.Print("ModuleTinter constructor called");
+            //            TDebug.Print("ModuleTintable constructor called");
+            if (!structureCachePopulated)
+                PopulateStructureCache(this);
+
+            while (activeSections.Count <= UISection.Count)
+                activeSections.Add(true);
             
             // belt & braces
             if(colourSets.Count == 0 )
                 colourSets.Add(new ColourSet());
+        }
+
+        // OnAwake() - initialise field refs here
+        public override void OnAwake()
+        {
+            ManagedMaterials = new List<Material>();
+            activeSections = new List<bool>();
+            colourSets = new List<ColourSet>();
         }
 
         public override void OnStart(StartState state)

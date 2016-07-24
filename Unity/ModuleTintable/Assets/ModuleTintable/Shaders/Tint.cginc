@@ -16,6 +16,7 @@ float _SaturationWindow;
 float _SaturationFalloff;
 float _GlossMult;
 
+
 // colourspace routines
 
 		float Epsilon = 1e-10;

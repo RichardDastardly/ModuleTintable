@@ -1,18 +1,20 @@
-Shader "KSP/Tinted Specular"
+Shader "KSP/Tinted Specular Masked"
 {
 	Properties 
 	{
 		_MainTex("_MainTex (RGB spec(A))", 2D) = "white" {}
-		_Color ("Main Color", Color) = (1,1,1,1)
-		_SpecColor ("Specular Color", Color) = (0.5, 0.5, 0.5, 1)
+		_BlendMask("_BlendMask (RGBA)", 2D) = "white" {}
+		_Colour ("Main Colour", Color) = (1,1,1,1)
+		_SecondColour("Secondary Colour", Color ) = (1,1,1,1)
+		_SpecColour ("Specular Colour", Color) = (0.5, 0.5, 0.5, 1)
 		_Shininess ("Shininess", Range (0.03, 1)) = 0.078125
 		
 		_Opacity("_Opacity", Range(0,1) ) = 1
 		_RimFalloff("_RimFalloff", Range(0.01,5) ) = 0.1
-		_RimColor("_RimColor", Color) = (0,0,0,0)
+		_RimColour("_RimColour", Color) = (0,0,0,0)
 
-		_TemperatureColor("_TemperatureColor", Color) = (0,0,0,0)
-		_BurnColor ("Burn Color", Color) = (1,1,1,1)
+		_TemperatureColour("_TemperatureColour", Color) = (0,0,0,0)
+		_BurnColour ("_Burn Colour", Color) = (1,1,1,1)
 
 //#include "TintProperties.cginc"
 
@@ -33,12 +35,13 @@ Shader "KSP/Tinted Specular"
 		half _Shininess;
 
 		sampler2D _MainTex;
+		sampler2D _BlendMask;
 
 		float _Opacity;
 		float _RimFalloff;
-		float4 _RimColor;
-		float4 _TemperatureColor;
-		float4 _BurnColor;
+		float4 _RimColour;
+		float4 _TemperatureColour;
+		float4 _BurnColour;
 
 #include "Tint.cginc"
 		
@@ -50,15 +53,16 @@ Shader "KSP/Tinted Specular"
 
 		void surf (Input IN, inout SurfaceOutput o)
 		{
-			float4 color = tex2D(_MainTex, (IN.uv_MainTex));// *_BurnColor;
+			float4 color = tex2D(_MainTex, (IN.uv_MainTex));// *_BurnColour;
+			float4 blend = tex2D(_BlendMask, (IN.uv_MainTex));
 			float3 normal = float3(0,0,1);
 
 			half rim = 1.0 - saturate(dot (normalize(IN.viewDir), normal));
 
-			float3 emission = (_RimColor.rgb * pow(rim, _RimFalloff)) * _RimColor.a;
-			emission += _TemperatureColor.rgb * _TemperatureColor.a;
+			float3 emission = (_RimColour.rgb * pow(rim, _RimFalloff)) * _RimColour.a;
+			emission += _TemperatureColour.rgb * _TemperatureColour.a;
 
-			color.rgb = lerp(color.rgb, color.rgb * HSVtoRGB(float3(_TintHue, _TintSat, _TintVal)), BlendFactor( color )) *_BurnColor;
+			color.rgb = lerp(color.rgb, color.rgb * HSVtoRGB(float3(_TintHue, _TintSat, _TintVal)), blend.a ) *_BurnColour;
 
 			o.Albedo = color.rgb;
 			o.Emission = emission;

@@ -6,20 +6,20 @@
 *.user
 *.userosscache
 *.sln.docstates
-[Uu]nity/PartTinter/Library/
-[Uu]nity/PartTinter/ProjectSettings/
-[Uu]nity/PartTinter/Temp/
-[Uu]nity/PartTinter/test_Data/
-[Uu]nity/PartTinter/.vs/
-[Uu]nity/PartTinter/Assets/*.*
-[Uu]nity/PartTinter/Assets/Plugins/
-[Uu]nity/PartTinter/Assets/SquadCore/
-[Uu]nity/PartTinter/Assets/XML/
-[Uu]nity/PartTinter/Assets/PartTinter/*.*
-[Uu]nity/PartTinter/Assets/PartTinter/Materials/
-[Uu]nity/PartTinter/*.exe
-[Uu]nity/PartTinter/*.sln
-[Uu]nity/PartTinter/*.pdb
+[Uu]nity/ModuleTintable/Library/
+[Uu]nity/ModuleTintable/ProjectSettings/
+[Uu]nity/ModuleTintable/Temp/
+[Uu]nity/ModuleTintable/test_Data/
+[Uu]nity/ModuleTintable/.vs/
+[Uu]nity/ModuleTintable/Assets/*.*
+[Uu]nity/ModuleTintable/Assets/Plugins/
+[Uu]nity/ModuleTintable/Assets/SquadCore/
+[Uu]nity/ModuleTintable/Assets/XML/
+[Uu]nity/ModuleTintable/Assets/ModuleTintable/*.*
+[Uu]nity/ModuleTintable/Assets/ModuleTintable/Materials/
+[Uu]nity/ModuleTintable/*.exe
+[Uu]nity/ModuleTintable/*.sln
+[Uu]nity/ModuleTintable/*.pdb
 
 
 # User-specific files (MonoDevelop/Xamarin Studio)

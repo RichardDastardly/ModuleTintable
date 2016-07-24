@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
 
-namespace Tinter
+namespace Tintable
 {
     [KSPAddon(KSPAddon.Startup.MainMenu, true)]
     class AssetLoader : MonoBehaviour
@@ -112,22 +112,22 @@ namespace Tinter
         }
 
         // Currently redundant.
-        void cbLoadShadersFromBundle(KSPAssets.Loaders.AssetLoader.Loader Loader )
-        {
-            TDebug.Print("Attempting to load shaders...");
-            for (int i = 0; i < Loader.definitions.Length; ++i)
-            {
-                UnityEngine.Object obj = Loader.objects[i];
-                if (obj == null)
-                    continue;
-                Shader bundledShader = obj as Shader;
-                string ShaderName = Loader.definitions[i].name;
-                if (bundledShader != null && ShaderName != null) // is an empty string null?
-                {
-                    TDebug.Print("Loading shader " + ShaderName);
-                    Shaders.Add(ShaderName, bundledShader);
-                }
-            }
-        }
+        //void cbLoadShadersFromBundle(KSPAssets.Loaders.AssetLoader.Loader Loader )
+        //{
+        //    TDebug.Print("Attempting to load shaders...");
+        //    for (int i = 0; i < Loader.definitions.Length; ++i)
+        //    {
+        //        UnityEngine.Object obj = Loader.objects[i];
+        //        if (obj == null)
+        //            continue;
+        //        Shader bundledShader = obj as Shader;
+        //        string ShaderName = Loader.definitions[i].name;
+        //        if (bundledShader != null && ShaderName != null) // is an empty string null?
+        //        {
+        //            TDebug.Print("Loading shader " + ShaderName);
+        //            Shaders.Add(ShaderName, bundledShader);
+        //        }
+        //    }
+        //}
     }
 }

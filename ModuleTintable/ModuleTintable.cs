@@ -8,7 +8,7 @@ using UnityEngine;
 namespace Tintable
 {
     #region Custom Attributes
-    [AttributeUsage(AttributeTargets.Field | AttributeTargets.Struct)]
+    [AttributeUsage(AttributeTargets.Field | AttributeTargets.Struct|AttributeTargets.Method )]
     public sealed class Section : Attribute
     {
         public int section = 1;
@@ -25,7 +25,7 @@ namespace Tintable
     {
         // debugging stuff from the start! how novel
         // dump this when we're done
-        public static string dbgTag = "[ModuleTintable] ";
+        private readonly static string dbgTag = "[ModuleTintable] ";
 
         public static void Print(string dbgString)
         {
@@ -111,43 +111,43 @@ namespace Tintable
     // check how GC & static fields really interact at some point, would be better to do this in the partmodule.
 
     // copy rather than copyref colourset objects here so we don't trap complete partmodules
-    [KSPAddon(KSPAddon.Startup.EditorAny, true)]
-    public class ClipBoard : MonoBehaviour
-    {
+    //[KSPAddon(KSPAddon.Startup.EditorAny, true)]
+    //public class ClipBoard : MonoBehaviour
+    //{
 
-        static List<ColourSet> colourSets = new List<ColourSet>();
+    //    static List<ColourSet> colourSets = new List<ColourSet>();
 
-        public static void Copy(List<ColourSet> t)
-        {
-            // destroy old ColourSets
-            colourSets.Clear(); // does this call the destructor of each element?
+    //    public static void Copy(List<ColourSet> t)
+    //    {
+    //        // destroy old ColourSets
+    //        colourSets.Clear(); // does this call the destructor of each element?
 
-            for( int i = 0; i < t.Count; i++ )
-            {
-                colourSets.Add(new ColourSet( t[i]));
-            }
-        }
+    //        for( int i = 0; i < t.Count; i++ )
+    //        {
+    //            colourSets.Add(new ColourSet( t[i]));
+    //        }
+    //    }
 
-        public static void Paste(List<ColourSet> t)
-        {
-            t.Clear();
-            for( int i = 0; i < colourSets.Count;i++ )
-            {
-                t.Add(new ColourSet(colourSets[i]));
-            }
-        }
+    //    public static void Paste(List<ColourSet> t)
+    //    {
+    //        t.Clear();
+    //        for( int i = 0; i < colourSets.Count;i++ )
+    //        {
+    //            t.Add(new ColourSet(colourSets[i]));
+    //        }
+    //    }
 
-        private void OnStart()
-        {
-            TDebug.Print("Clipboard started");
-        }
+    //    private void OnStart()
+    //    {
+    //        TDebug.Print("Clipboard started");
+    //    }
 
-        private void OnDestroy()
-        {
-            colourSets.Clear();
-            TDebug.Print("Clipboard destroyed");
-        }
-    }
+    //    private void OnDestroy()
+    //    {
+    //        colourSets.Clear();
+    //        TDebug.Print("Clipboard destroyed");
+    //    }
+    //}
     #endregion
 
     public class ModuleTintable : PartModule
@@ -180,26 +180,27 @@ namespace Tintable
         private bool isSymmetryCounterpart = false;
 
         private List<ColourSet> colourSets; // a part may use more than one colourset depending if it has a blend mask
-                                        
+
         // use RGB values of mask to blend different coloursets if it has one
         [KSPField]
         private string paintMask = null;
 
         // should only be set in part config if there's a mask
-        [KSPField( isPersistant = true)]
+        [KSPField(isPersistant = true)]
         private int paintableColours = 1;
 
-        // use RGBA channels as independent greyscale overlay
+        // Intended for patching existing parts
+        // Will use blend as well as paintmask alpha to determine whether to colour an area, as 
+        // static paint is usually in the paintmask
         [KSPField]
-        private string aoMask = null;
-
+        private bool useBlendForStaticPaintMask = false;
 
         private int colourSetIndex = 0;
 
         private List<Material> ManagedMaterials;
 
-        private enum tintUISection : int { Blend, Colour, Surface, Overlay };
-        private List<bool> activeSections;
+        private enum tintUISection : int { All, Blend, Colour, Surface, Channel, Clipboard };
+        private enum MapChannel : int { C1 = 0xFF0000, C2 = 0xFF00, C3 = 0xFF };
 
         [Section(1)] // can't use enum here, grumble
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Blend Value"),
@@ -213,17 +214,17 @@ namespace Tintable
 
         [Section(1)]
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Blend Falloff"),
-         UI_FloatRange( minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
+         UI_FloatRange(minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
         public float tintUIBlendFalloff = 0;
 
         [Section(1)]
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Blend Saturation Threshold"),
-         UI_FloatRange( minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
+         UI_FloatRange(minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
         public float tintUIBlendSaturationThreshold = 0;
 
         [Section(2)]
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Tint Hue"),
-          UI_FloatRange( minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
+          UI_FloatRange(minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
         public float tintUIHue = 0;
 
         [Section(2)]
@@ -233,12 +234,12 @@ namespace Tintable
 
         [Section(2)]
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Tint Value"),
-          UI_FloatRange( minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
+          UI_FloatRange(minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
         public float tintUIValue = 0;
 
         [Section(3)]
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Glossiness"),
-          UI_FloatRange( minValue = 0, maxValue = 100, stepIncrement = 1, scene = UI_Scene.Editor)]
+          UI_FloatRange(minValue = 0, maxValue = 100, stepIncrement = 1, scene = UI_Scene.Editor)]
         public float tintUIGloss = 100;
 
         [Section(3)]
@@ -246,20 +247,53 @@ namespace Tintable
           UI_FloatRange(minValue = 0, maxValue = 100, stepIncrement = 1, scene = UI_Scene.Editor)]
         public float tintUITightness = 100;
 
+        #region Clipboard
+
+        private static List<ColourSet> _clipboard;
+        private static List<ColourSet> Clipboard
+        {
+            set {
+                _clipboard.Clear(); // does this call the destructor of each element?
+
+                for (int i = 0; i < value.Count; i++)
+                {
+                    _clipboard.Add(new ColourSet(value[i]));
+                }
+            }
+
+            get { // not sure how useful this really is
+
+                var t = new List<ColourSet>();
+                for (int i = 0; i < _clipboard.Count; i++)
+                {
+                    t.Add(new ColourSet(_clipboard[i]));
+                }
+                return t;
+            }
+        }
+
+        [Section(5)]
         [KSPEvent(guiActive = false, guiActiveEditor = true, guiName = "Copy colour settings")]
         public void CopytoClipboard()
         {
-            ClipBoard.Copy(colourSets);
+            //ClipBoard.Copy(colourSets);
+            Clipboard = colourSets;
         }
 
+        [Section(5)]
         [KSPEvent(guiActive = false, guiActiveEditor = true, guiName = "Paste colour settings")]
         public void PastefromClipboard()
         {
-            ClipBoard.Paste(colourSets);
+            colourSets.Clear();
+            for (int i = 0; i < Clipboard.Count; i++)
+            {
+                colourSets.Add(new ColourSet(Clipboard[i]));
+            }
             colourSetIndex = (colourSetIndex > colourSets.Count) ? 0 : colourSetIndex;
             ColourSetToUI(colourSets[colourSetIndex]);
             needUpdate = true;
         }
+        #endregion
         #endregion
 
 
@@ -267,32 +301,102 @@ namespace Tintable
 
         // consider abstracting this stuff a bit. Preferably consider doing something more sane.
 
-        private static Dictionary<string, FieldInfo> UIFields;
-        private static List<List<FieldInfo>> UISection;
+        private static Dictionary<string, MemberInfo> UIMembers; // Cache of field data with [Section] attrib via reflection. Don't use if there's any alternative.
+        //     private static List<List<FieldInfo>> UISection;
+        
         private static bool structureCachePopulated = false;
+
+ 
+        private enum UIEntityType { Field, Event, Action };
+
+        class UIControlEntity
+        {
+            public string name;
+            public int index;
+            public UIEntityType type;
+            public UIControlEntity( int i, UIEntityType t, string n = "" )
+            {
+                name = n;
+                index = i;
+                type = t;
+            }
+
+            public UIControlEntity( int i, MemberTypes t, string n = "" )
+            {
+                name = n;
+                index = i;
+                type = UIEntityType.Field;
+                if (t == MemberTypes.Method)
+                    type = UIEntityType.Event;
+            }
+        }
+
+        class UIControlSection
+        {
+            private List<UIControlEntity> _entries = new List<UIControlEntity>();
+            public UIControlEntity this[int index]
+            {
+                get
+                {
+                    return _entries[index];
+                }
+                set
+                {
+                    _entries[index] = value;
+                }
+            }
+            public bool Active = true;
+
+            public int Count
+            {
+                get
+                {
+                    return _entries.Count;
+                }
+            }
+
+            public void Add( UIControlEntity e )
+            {
+                _entries.Add(e);
+            }
+        }
+        private static List<UIControlSection> UISection;
+
+ /*       private static Dictionary<string, UIControlEntity> UIControls; //  list of KSPField/Events. You know if only BaseField/Base/Event had 
+                                                                // a common ancestor with the gui flags in it so much of this code would
+                                                                // be unnecessary. Populated in OnAwake rather than via reflection
+*/
 
         private static void PopulateStructureCache( object obj )
         {
             if (structureCachePopulated)
                 return;
+            //TDebug.Print("Populating structure cache");
 
-            UIFields = new Dictionary<string, FieldInfo>();
-            UISection = new List<List<FieldInfo>>();
+            UIMembers = new Dictionary<string, MemberInfo>();
+            UISection = new List<UIControlSection>();
+
 
             var _thisType = obj.GetType();
-            var _uiFields = _thisType.GetFields(BindingFlags.Instance);
+            var _uiMembers = _thisType.GetMembers(BindingFlags.Instance|BindingFlags.Public);
 
-            for( int i = 0; i < _uiFields.Length; i++ )
+            for( int i = 0; i < _uiMembers.Length; i++ )
             {
-                if (Attribute.IsDefined(_uiFields[i], typeof(Section)))
+                //TDebug.Print("Structure cache checking field " + _uiMembers[i].Name);
+                if (Attribute.IsDefined(_uiMembers[i], typeof(Section)))
                 {
-                    UIFields[_uiFields[i].Name] = _uiFields[i];
-                    var _fieldSectionAttr = (Section)Attribute.GetCustomAttribute(_uiFields[i], typeof(Section));
+                    UIMembers[_uiMembers[i].Name] = _uiMembers[i];
+                    var _SectionAttr = (Section)Attribute.GetCustomAttribute(_uiMembers[i], typeof(Section));
 
-                    while (UISection.Count <= _fieldSectionAttr.section)
-                        UISection.Add(new List<FieldInfo>());
+                    while (UISection.Count <= _SectionAttr.section)
+                        UISection.Add(new UIControlSection());
 
-                    UISection[_fieldSectionAttr.section].Add(_uiFields[i]);
+                    TDebug.Print("Structure cache saving field " + _uiMembers[i].Name + " to section "+ _SectionAttr.section+ " . Type " + _uiMembers[i].MemberType.ToString());
+
+                    // section 0 is all fields with [Section] attributes
+                    var _entry = new UIControlEntity(0, _uiMembers[i].MemberType, _uiMembers[i].Name);
+                    UISection[0].Add( _entry );
+                    UISection[_SectionAttr.section].Add(_entry);
                 }
             }
             structureCachePopulated = true;
@@ -301,13 +405,13 @@ namespace Tintable
 
         // these two need some work - creating lists just to dispose when you grab values is bad form
         // All fields
-        public static List<string> GetTintFieldKeys()
-        {
-            return new List<string>(UIFields.Keys); // maybe just return (List<string>)UIFields.Keys ?
-        }
+        //public static List<string> GetKSPFieldKeys()
+        //{
+        //    return new List<string>(UIMembers.Keys); // maybe just return (List<string>)UIMembers.Keys ?
+        //}
 
         // only field names from a particular section
-        public static List<string> GetTintFieldKeys( int section )
+        private static List<string> GetKSPFieldKeys( int section = 0 )
         {
             if (section > UISection.Count || UISection[section] == null)
                 return null;
@@ -315,87 +419,127 @@ namespace Tintable
             var SectionKeys = new List<string>();
             for( int i = 0; i < UISection[section].Count; i++ )
             {
-                SectionKeys.Add(UISection[section][i].Name);
+                SectionKeys.Add(UISection[section][i].name);
             }
             return SectionKeys;
         }
 
-        public Dictionary<string,float> GetTintFields()
+        private static UIControlSection GetKSPEntities( int section = 0 )
         {
-            var UIValues = new Dictionary<string,float>( UIFields.Count );
-            var _UIKeys = new List<string>(UIFields.Keys);
-            for( int i = 0; i < _UIKeys.Count; i++ )
-            {
-                UIValues[UIFields[_UIKeys[i]].Name] = (float)UIFields[_UIKeys[i]].GetValue(this);
-            }
-            return UIValues;
-        }
-
-        public Dictionary<string, float> GetTintFields( int section )
-        {
-            if ((section > UISection.Count )|| (UISection[section] == null))
+            if (section > UISection.Count || UISection[section] == null)
                 return null;
 
+            return UISection[section];
+        }
+
+        //public Dictionary<string,float> GetKSPFields()
+        //{
+        //    var UIValues = new Dictionary<string, float>(UIMembers.Count);
+        //    var _UIKeys = new List<string>(UIMembers.Keys);
+        //    for( int i = 0; i < _UIKeys.Count; i++ )
+        //    {
+        //        UIValues[_UIKeys[i]] = (float)Fields.GetValue(_UIKeys[i]);
+        //    }
+        //    return UIValues;
+        //}
+
+        public Dictionary<string, float> GetKSPFields(int section = 0 )
+        {
+            if ((section > UISection.Count )|| (UISection[section] == null))
+                    return null;
+
             var UIValues = new Dictionary<string, float>(UISection[section].Count);
+
             for (int i = 0; i < UISection[section].Count; i++)
             {
-                UIValues[UISection[section][i].Name] = (float)UISection[section][i].GetValue(this);
+                var _entity = UISection[section][i];
+                if(_entity != null && _entity.type == UIEntityType.Field )
+                    UIValues[_entity.name] = (float)Fields.GetValue(_entity.name);
             }
             return UIValues;
         }
 
-        public void SetTintFields( Dictionary<string,float> fieldData )
-        {
-            var _UIKeys = new List<string>(fieldData.Keys);
-            for ( int i = 0; i < fieldData.Count; i++ )
-            {
-                UIFields[_UIKeys[i]].SetValue(this, fieldData[_UIKeys[i]]);
-            }
-        }
-
-        public void SetTintFields( int section, Dictionary<string,float> fieldData )
+        public void SetKSPFields(Dictionary<string, float> fieldData, int section = 0)
         {
             if ((section > UISection.Count) || (UISection[section] == null))
                 return;
 
-            var _SectionKeys = GetTintFieldKeys(section);
-            for( int i = 0; i < _SectionKeys.Count; i++ )
+            var _Section = GetKSPEntities(section);
+            for (int i = 0; i < _Section.Count; i++)
             {
-                UIFields[_SectionKeys[i]].SetValue(this, fieldData[_SectionKeys[i]]);
+                if( _Section[i].type == UIEntityType.Field )
+                    Fields.SetValue(_Section[i].name, fieldData[_Section[i].name]);
             }
         }
+
+
+        // Get/Set via reflection - this is pretty slow, but I don't know how else to do it without
+        // directly referencing
+        //public Dictionary<string,float> GetKSPFields()
+        //{
+        //    var UIValues = new Dictionary<string,float>( UIMembers.Count );
+        //    var _UIKeys = new List<string>(UIMembers.Keys);
+        //    for( int i = 0; i < _UIKeys.Count; i++ )
+        //    {
+        //        UIValues[UIMembers[_UIKeys[i]].Name] = (float)UIMembers[_UIKeys[i]].GetValue(this);
+        //        //TDebug.Print("UI key " + _UIKeys[i] + " value " + UIMembers[_UIKeys[i]].GetValue(this));
+        //    }
+        //    return UIValues;
+        //}
+
+        //public Dictionary<string, float> GetKSPFields( int section )
+        //{
+        //    if ((section > UISection.Count )|| (UISection[section] == null))
+        //        return null;
+
+        //    var UIValues = new Dictionary<string, float>(UISection[section].Count);
+        //    for (int i = 0; i < UISection[section].Count; i++)
+        //    {
+        //        UIValues[UISection[section][i].Name] = (float)UISection[section][i].GetValue(this);
+        //    }
+        //    return UIValues;
+        //}
+
+        //public void SetKSPFields( Dictionary<string,float> fieldData )
+        //{
+        //    var _UIKeys = new List<string>(fieldData.Keys);
+        //    for ( int i = 0; i < fieldData.Count; i++ )
+        //    {
+        //        UIMembers[_UIKeys[i]].SetValue(this, fieldData[_UIKeys[i]]);
+        //    }
+        //}
+
+        //public void SetKSPFields( int section, Dictionary<string,float> fieldData )
+        //{
+        //    if ((section > UISection.Count) || (UISection[section] == null))
+        //        return;
+
+        //    var _SectionKeys = GetKSPFieldKeys(section);
+        //    for( int i = 0; i < _SectionKeys.Count; i++ )
+        //    {
+        //        UIMembers[_SectionKeys[i]].SetValue(this, fieldData[_SectionKeys[i]]);
+        //    }
+        //}
+
+
         #endregion
 
         #region Private
-        private void onTweakableChange(BaseField field, object what)
+        private void UIEvent_onTweakableChange(BaseField field, object what)
         {
             needUpdate = true;
         }
 
-        private void AttachGuiFields()
+        private void SetupUIFieldCallbacks()
         {
             for (int i = 0; i < Fields.Count; i++)
             {
                 var uiField = Fields[i].uiControlEditor;
                 if (uiField.GetType().FullName == "UI_FloatRange")
                 {
-                    uiField.onFieldChanged = onTweakableChange;
+                    uiField.onFieldChanged = UIEvent_onTweakableChange;
                 }
             }
-        }
-
-        private void ToggleFields(bool flag)
-        {
-            for (int i = 0; i < Fields.Count; i++)
-            {
-                var uiField = Fields[i].uiControlEditor;
-                if (uiField != null && uiField.GetType().FullName == "UI_FloatRange")
-                {
-                    Fields[i].guiActiveEditor = flag;
-                }
-            }
-            Events[nameof(CopytoClipboard)].guiActiveEditor = flag;
-            Events[nameof(PastefromClipboard)].guiActiveEditor = flag;
         }
 
         private void TraverseAndReplaceShaders()
@@ -497,30 +641,29 @@ namespace Tintable
 
         private void UIToColourSet( ColourSet c)
         {
-            c.Set("BlendPoint", tintUIBlendPoint);
-            c.Set("BlendBand", tintUIBlendBand);
-            c.Set("BlendFalloff", tintUIBlendFalloff);
-            c.Set("BlendSaturationThreshold", tintUIBlendSaturationThreshold);
-            c.Set("Hue", tintUIHue);
-            c.Set("Saturation", tintUISaturation);
-            c.Set("Value", tintUIValue);
-            c.Set("Glossiness", tintUIGloss);
-            // specular
+            c.Values = GetKSPFields();// process uses a temporary dictionary, rather unnecessarily - clean
         }
 
         private void ColourSetToUI(ColourSet c)
         {
-            tintUIBlendPoint = c.Get("BlendPoint") ?? 0f;
-            tintUIBlendBand = c.Get("BlendBand" ) ?? 0f;
-            tintUIBlendFalloff = c.Get("BlendFalloff" ) ?? 0f;
-            tintUIBlendSaturationThreshold = c.Get("BlendSaturationThreshold" ) ?? 0f;
-            tintUIHue = c.Get("Hue" ) ?? 0f;
-            tintUISaturation = c.Get("Saturation" ) ?? 0f;
-            tintUIValue = c.Get("Value" ) ?? 0f;
-            tintUIGloss = c.Get("Glossiness" ) ?? 0f;
-            // specular
+            SetKSPFields(c.Values); // process uses a temporary dictionary, rather unnecessarily - clean
         }
-        
+
+        private void UIMembersVisible(bool flag, int section = 0)
+        {
+            var _section = GetKSPEntities(section);
+            for (int i = 0; i < _section.Count; i++)
+            {
+                //             UIControls[keys[i]].obj.guiActiveEditor = flag;
+                //Convert.ChangeType(UIControls[keys[i]].obj, UIControls[keys[i]].type).guiActiveEditor = flag;
+
+                if (_section[i].type == UIEntityType.Field)
+                    Fields[_section[i].name].guiActiveEditor = flag;
+                else if (_section[i].type == UIEntityType.Event)
+                    Events[_section[i].name].guiActiveEditor = flag;
+            }
+        }
+
         #endregion
 
 
@@ -558,36 +701,59 @@ namespace Tintable
             if (!structureCachePopulated)
                 PopulateStructureCache(this);
 
-            while (activeSections.Count <= UISection.Count)
-                activeSections.Add(true);
-            
-            // belt & braces
-            if(colourSets.Count == 0 )
-                colourSets.Add(new ColourSet());
         }
 
         // OnAwake() - initialise field refs here
         public override void OnAwake()
         {
+            //if (UIControls == null)
+            //{
+            //    UIControls = new Dictionary<string, UIControlEntity>();
+
+            //    for (int i = 0; i < Fields.Count; i++)
+            //      UIControls[Fields[i].name] = new UIControlEntity(i, UIEntityType.Field);
+
+            //    for (int i = 0; i < Events.Count; i++)
+            //    {
+            //        if (Events.GetByIndex(i) == null)
+            //        {
+            //            TDebug.Print("Events[" + i + "] is null!");
+            //            continue;
+            //        }
+
+            //        UIControls[Events.GetByIndex(i).name] = new UIControlEntity(i, UIEntityType.Event);
+            //    }
+            //}
+
             ManagedMaterials = new List<Material>();
-            activeSections = new List<bool>();
-            colourSets = new List<ColourSet>();
+
+              // belt & braces
+            if (colourSets == null)
+            {
+                //TDebug.Print("Initialising colourSets");
+                colourSets = new List<ColourSet>();
+            }
+            if (colourSets.Count == 0)
+                colourSets.Add(new ColourSet());
+
+            if (_clipboard == null)
+                _clipboard = new List<ColourSet>();
         }
 
         public override void OnStart(StartState state)
         {
             base.OnStart(state);
             part.OnEditorAttach += new Callback(OnEditorAttach);
-            AttachGuiFields();
+            SetupUIFieldCallbacks();
             TraverseAndReplaceShaders();
 
             if( HighLogic.LoadedSceneIsEditor )
-                ToggleFields(active);
+                UIMembersVisible(active);
         }
 
         public void OnEditorAttach()
         {
-            ToggleFields(active);
+            UIMembersVisible(active);
         }
 
         public override void OnSave(ConfigNode node)
@@ -598,6 +764,11 @@ namespace Tintable
         public override void OnLoad(ConfigNode node)
         {
             base.OnLoad(node);
+
+            // temporary, dump a few fields
+            TDebug.Print("Paintmask: " + paintMask);
+            TDebug.Print("PaintableColours: " + paintableColours);
+            TDebug.Print("useBlendForStaticPaintMask: " + useBlendForStaticPaintMask.ToString());
 
             // temporary, need to store coloursets in save files
             UIToColourSet(colourSets[colourSetIndex]);

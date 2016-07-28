@@ -106,7 +106,7 @@ namespace Tintable
         {
             if( TABundle )
             {
-                TDebug.Print("Unloading assets.");
+                TDebug.Print("AssetLoader: Unloading assets.");
                 TABundle.Unload(false);
             }
         }

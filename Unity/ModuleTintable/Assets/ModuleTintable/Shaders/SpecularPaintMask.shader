@@ -1,22 +1,30 @@
 ﻿Shader "DLTD/SpecularPaintMask" {
 	Properties{
+		[Header(Temporarly Colour pickers)]
 		_Color1("Color1", Color) = (1,1,1,1)
 		_Color2("Color2", Color) = (1,1,1,1)
 		_Color3("Color3", Color) = (1,1,1,1)
 		_Color4("Color4", Color) = (1,1,1,1)
+		[Space]
+		[Header(Maps)]
 		_MainTex("Overlay Greyscale 3 channel, spec A", 2D) = "white" {} // AO texture, use MainTex for compatibility
 		_PaintMask("Paint Mask Greyscale 3 channel/RGB, blendmask A", 2D) = "white" {}
+		[Space]
+
+		[Header(Temporary Selectors)]
 		_PaintMaskSelector("Paint Mask channel", Color ) = (1,0,0,0)
 		_OverlaySelector("Overlay channel", Color) = (0,0,0,0)
+			 
+		[Space]
+		[Header(Specular)]
 		_SpecColor("Specular Color", Color) = (0.5, 0.5, 0.5, 1)
 		_OverlaySpec("Blend Overlay level with Spec", Range(0,1)) = 0.1
+		_Shininess("Phong tightness", Range(0.03, 1)) = 0.078125
 
-		_Shininess("Shininess", Range(0.03, 1)) = 0.078125
-		_RimFalloff("_RimFalloff", Range(0.01,5)) = 0.1
-		_RimColor("_RimColor", Color) = (0,0,0,0)
-
-		_TemperatureColor("_TemperatureColor", Color) = (0,0,0,0)
-		_BurnColor("_Burn Color", Color) = (1,1,1,1)
+			[HideInInspector]_RimFalloff("_RimFalloff", Range(0.01,5)) = 0.1
+			[HideInInspector]_RimColor("_RimColor", Color) = (0,0,0,0)
+			[HideInInspector]_TemperatureColor("_TemperatureColor", Color) = (0,0,0,0)
+			[HideInInspector]_BurnColor("_Burn Color", Color) = (1,1,1,1)
 	}
 		SubShader{
 			Tags { "RenderType" = "Opaque" }
@@ -29,21 +37,6 @@
 	#pragma surface surf NormalizedBlinnPhong keepalpha
 	#pragma target 3.0
 
-			inline fixed4 LightingNormalizedBlinnPhong(SurfaceOutput s, half3 lightDir, half3 viewDir, half atn)
-			{
-				fixed3 normalizedSurfNormal = normalize(s.Normal);
-				fixed3 halfDir = normalize(lightDir + viewDir);
-
-				fixed diff = max(0, dot(normalizedSurfNormal, lightDir));
-
-				fixed nh = max(0, dot(normalizedSurfNormal, halfDir));
-				fixed spec = pow(nh, s.Specular * 128) * s.Gloss;
-
-				fixed4 c;
-				c.rgb = (_LightColor0.rgb * ((s.Albedo * diff) + (spec *_SpecColor.rgb))) * atn;
-				c.a = s.Alpha + _LightColor0.a * _SpecColor.a * spec * atn;
-				return c;
-			}
 
 			struct Input {
 				float2 uv_MainTex;
@@ -71,6 +64,7 @@
 			float4 _OverlaySelector;
 			float4 _PaintMaskSelector;
 			float _OverlaySpec;
+			float _OverlayChan;
 
 			float3 overlayMasked;
 			float4 paintMasked;
@@ -81,6 +75,8 @@
 
 			float3 mult;
 			float3 screen;
+
+#include "Tint.cginc"
 
 			void surf(Input IN, inout SurfaceOutput o)
 			{
@@ -121,6 +117,7 @@
 				// also parts of the map which simply aren't to be painted on.
 				// The Overlay map will still be blended over this
 				paintFinal = lerp( paint.rgb, lerp(Colours[paintLower], Colours[ceil(paintSelected)], paintSelected - paintLower), paint.a );
+
 
 				// _OverlaySelector is again a RGB value to pick up the right channel
 				// the mechanism works exactly the same

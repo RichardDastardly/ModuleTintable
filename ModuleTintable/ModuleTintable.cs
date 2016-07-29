@@ -22,10 +22,8 @@ namespace DLTD.Modules
     #endregion
 
     #region PaletteEntry
-    [Serializable]
     public class PaletteEntry : IConfigNode
     {
-        [SerializeField]
         private Dictionary<string, float> _Settings = new Dictionary<string, float>();
 
         public Dictionary<string, float> Values
@@ -76,7 +74,13 @@ namespace DLTD.Modules
 
         // Confignode read/write
         public void Load(ConfigNode node )
-        { }
+        {
+            _Settings.Clear();
+
+            foreach (ConfigNode.Value v in node.values)
+                _Settings.Add(v.name, float.Parse(v.value));
+            
+        }
 
         public void Save(ConfigNode node )
         {
@@ -95,6 +99,125 @@ namespace DLTD.Modules
         public void CloneFromColourSet( PaletteEntry t)
         {
             t.Values = Values;
+        }
+    }
+    #endregion
+
+    #region Palette
+    public class Palette : IConfigNode
+    {
+        private List<PaletteEntry> _pStore;
+        public PaletteEntry this[int index]
+        {
+            get { return _pStore[Mathf.Clamp(index, 0, _pStore.Count)]; }
+            set { _pStore[index] = value; }
+        }
+
+        public int Count
+        {
+            get { return _pStore.Count; }
+        }
+
+        public int activeEntry = 0;
+        private int _EntryCount = 1;
+
+        public Palette()
+        {
+            Initialise();
+            Add(new PaletteEntry());
+        }
+
+        public Palette( Palette p )
+        {
+            Clone( p );
+        }
+
+        public Palette( Palette p, int cols )
+        {
+            Clone(p);
+            _EntryCount = cols;
+        }
+
+        public void Clone( Palette p )
+        {
+            Initialise();
+
+            for (int i = 0; i < p.Count; i++)
+                Add(new PaletteEntry(p[i]));
+        }
+
+        private void Initialise()
+        {
+            if (_pStore == null)
+                _pStore = new List<PaletteEntry>();
+            _pStore.Clear();
+            _EntryCount = 0;
+        }
+
+        public PaletteEntry Next()
+        {
+            if (activeEntry++ < _EntryCount) // _EntryCount starts at 1
+            {
+                if (activeEntry >= _pStore.Count || _pStore[activeEntry] == null)
+                    _pStore.Add(new PaletteEntry());
+                return _pStore[activeEntry];
+            }
+            return null;
+        }
+
+        public PaletteEntry Previous()
+        {
+            if (activeEntry > 0 )
+                return _pStore[--activeEntry];
+            return null;
+        }
+
+        public PaletteEntry Active()
+        {
+            return _pStore[activeEntry];
+        }
+
+        public void Add( PaletteEntry p )
+        {
+            _pStore.Add(p);
+            _EntryCount++;
+        }
+
+        public void Limit( int c )
+        {
+            _EntryCount = c;
+        }
+
+        public void Clear()
+        {
+            _pStore.Clear();
+            Initialise();
+        }
+
+        private static string _entryTag = "PALETTE_ENTRY";
+
+        public void Load(ConfigNode node)
+        {
+            Clear();
+            Initialise();
+            // Node is called PALETTE - assume this is passed the node, not the entire config 
+            // entries will be PALETTE_ENTRY sub nodes
+            foreach (ConfigNode e in node.GetNodes(_entryTag)) // I hope GetNodes() is ordered...
+            {
+                var p_e = new PaletteEntry();
+                p_e.Load(e);
+                Add(p_e);
+            }
+        }
+
+        public void Save(ConfigNode node)
+        {
+            for ( int i = 0; i < _pStore.Count; i++ )
+            {
+                var n = new ConfigNode(_entryTag);
+                _pStore[i].Save(n);
+                node.AddNode( n );
+            }
         }
     }
     #endregion
@@ -128,7 +251,8 @@ namespace DLTD.Modules
         private bool needShaderReplacement = true;
         private bool isSymmetryCounterpart = false;
 
-        private List<PaletteEntry> Palette; // a part may use more than one colourset depending if it has a blend mask
+        [KSPField]
+        public Palette Palette;
 
         // use RGB values of mask to blend different coloursets if it has one
         [KSPField]
@@ -144,8 +268,6 @@ namespace DLTD.Modules
         [KSPField]
         public bool useBlendForStaticPaintMask = false;
 
-        private int activePaletteEntry = 0;
-
         private List<Material> ManagedMaterials;
 
         private enum UISectionID : int { All, Blend, Colour, Selector, Surface, Channel, Clipboard };
@@ -154,56 +276,63 @@ namespace DLTD.Modules
         [Section(1)] // can't use enum here, grumble
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Blend Value"),
             UI_FloatRange(minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
-        public float tintUIBlendPoint = 0;
+        public float tintBlendPoint = 0;
 
         [Section(1)]
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Blend Band"),
          UI_FloatRange(minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
-        public float tintUIBlendBand = 0;
+        public float tintBlendBand = 0;
 
         [Section(1)]
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Blend Falloff"),
          UI_FloatRange(minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
-        public float tintUIBlendFalloff = 0;
+        public float tintBlendFalloff = 0;
 
         [Section(1)]
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Blend Saturation Threshold"),
          UI_FloatRange(minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
-        public float tintUIBlendSaturationThreshold = 0;
+        public float tintBlendSaturationThreshold = 0;
 
         [Section(2)]
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Tint Hue"),
           UI_FloatRange(minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
-        public float tintUIHue = 0;
+        public float tintHue = 0;
 
         [Section(2)]
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Tint Saturation"),
           UI_FloatRange(minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
-        public float tintUISaturation = 0;
+        public float tintSaturation = 0;
 
         [Section(2)]
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Tint Value"),
           UI_FloatRange(minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
-        public float tintUIValue = 0;
+        public float tintValue = 0;
 
         [Section(3)]
-        [KSPEvent(guiActiveEditor = true, guiName = "Next colour")]
+        [KSPEvent(guiActive = false, guiActiveEditor = true, guiName = "Next colour")]
         public void UINextColour()
         {
-            if( activePaletteEntry < paintableColours)
+
+            Events[nameof(UIPrevColour)].guiActiveEditor = true;
+
+            if (Palette.activeEntry < paintableColours)
             {
-                ColourSetToUI(Palette[++activePaletteEntry]);
-                // disable button
+                ColourSetToUI(Palette.Next());
+                if( Palette.activeEntry == paintableColours )
+                    Events[nameof(UINextColour)].guiActiveEditor = false;
             }
         }
 
         [Section(3)]
-        [KSPEvent(guiActiveEditor = true, guiName = "Prev colour")]
+        [KSPEvent(guiActive = false, guiActiveEditor = true, guiName = "Prev colour")]
         public void UIPrevColour()
         {
-            if (activePaletteEntry > 0 )
+            Events[nameof(UINextColour)].guiActiveEditor = true;
+            if (Palette.activeEntry > 0 )
             {
-                ColourSetToUI(Palette[--activePaletteEntry]);
+                ColourSetToUI(Palette.Previous());
+                if (Palette.activeEntry == 0 )
+                    Events[nameof(UIPrevColour)].guiActiveEditor = false;
                 // disable button
             }
         }
@@ -211,35 +340,48 @@ namespace DLTD.Modules
         [Section(4)]
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Glossiness"),
           UI_FloatRange(minValue = 0, maxValue = 100, stepIncrement = 1, scene = UI_Scene.Editor)]
-        public float tintUIGloss = 100;
+        public float tintGloss = 100;
 
         [Section(4)]
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Reflection tightness"),
           UI_FloatRange(minValue = 0, maxValue = 100, stepIncrement = 1, scene = UI_Scene.Editor)]
-        public float tintUITightness = 100;
+        public float tintTightness = 100;
 
         #region Clipboard
 
-        private static List<PaletteEntry> _clipboard;
-        private static List<PaletteEntry> Clipboard
+        //private static List<PaletteEntry> _clipboard;
+        //private static List<PaletteEntry> Clipboard
+        //{
+        //    set {
+        //        _clipboard.Clear(); // does this call the destructor of each element?
+
+        //        for (int i = 0; i < value.Count; i++)
+        //        {
+        //            _clipboard.Add(new PaletteEntry(value[i]));
+        //        }
+        //    }
+
+        //    get { // not sure how useful this really is
+
+        //        var t = new List<PaletteEntry>();
+        //        for (int i = 0; i < _clipboard.Count; i++)
+        //        {
+        //            t.Add(new PaletteEntry(_clipboard[i]));
+        //        }
+        //        return t;
+        //    }
+        //}
+
+        private static Palette _cb;
+        private static Palette Clipboard
         {
-            set {
-                _clipboard.Clear(); // does this call the destructor of each element?
-
-                for (int i = 0; i < value.Count; i++)
-                {
-                    _clipboard.Add(new PaletteEntry(value[i]));
-                }
+            set
+            {
+                _cb = new Palette(value);
             }
-
-            get { // not sure how useful this really is
-
-                var t = new List<PaletteEntry>();
-                for (int i = 0; i < _clipboard.Count; i++)
-                {
-                    t.Add(new PaletteEntry(_clipboard[i]));
-                }
-                return t;
+            get
+            {
+                return new Palette(_cb );
             }
         }
 
@@ -255,13 +397,11 @@ namespace DLTD.Modules
         [KSPEvent(guiActive = false, guiActiveEditor = true, guiName = "Paste colour settings")]
         public void PastefromClipboard()
         {
-            Palette.Clear();
-            for (int i = 0; i < Clipboard.Count; i++)
-            {
-                Palette.Add(new PaletteEntry(Clipboard[i]));
-            }
-            activePaletteEntry = (activePaletteEntry > Palette.Count) ? 0 : activePaletteEntry;
-            ColourSetToUI(Palette[activePaletteEntry]);
+            // check what happens if this is an empty palette...
+            Palette = Clipboard;
+            Palette.Limit(paintableColours);
+            
+            ColourSetToUI(Palette.Active());
             needUpdate = true;
         }
         #endregion
@@ -271,7 +411,7 @@ namespace DLTD.Modules
         #region Reflection / field cache / GetSet methods
 
         // consider abstracting this stuff a bit. Preferably consider doing something more sane.
-        // Looks viable to be spun off into attributes, look at that in future
+        // Looks viable to be spun off into an interface, look at that in future
 
         private static Dictionary<string, MemberInfo> UIMembers; // Cache of field data with [Section] attrib via reflection. Don't use if there's any alternative.
         //     private static List<List<FieldInfo>> UISection;
@@ -435,7 +575,7 @@ namespace DLTD.Modules
             var _Section = GetKSPEntities(section);
             for (int i = 0; i < _Section.Count; i++)
             {
-                if( _Section[i].type == UIEntityType.Field )
+                if( _Section[i].type == UIEntityType.Field && fieldData.ContainsKey(_Section[i].name))
                     Fields.SetValue(_Section[i].name, fieldData[_Section[i].name]);
             }
         }
@@ -575,23 +715,23 @@ namespace DLTD.Modules
             for (int i = 0; i <  ManagedMaterials.Count; i++ ) 
             {
                 Material m = ManagedMaterials[i];
-                m.SetFloat("_TintPoint", SliderToShaderValue(tintUIBlendPoint));
-                m.SetFloat("_TintBand", SliderToShaderValue(tintUIBlendBand));
+                m.SetFloat("_TintPoint", SliderToShaderValue(tintBlendPoint));
+                m.SetFloat("_TintBand", SliderToShaderValue(tintBlendBand));
 
-                float tintFalloff = SliderToShaderValue(tintUIBlendFalloff);
+                float tintFalloff = SliderToShaderValue(tintBlendFalloff);
                 m.SetFloat("_TintFalloff", (tintFalloff > 0 ) ? tintFalloff : 0.001f ); // we divide by this in the shader
-                m.SetFloat("_TintHue", SliderToShaderValue(tintUIHue));
-                m.SetFloat("_TintSat", SliderToShaderValue(tintUISaturation));
-                m.SetFloat("_TintVal", SliderToShaderValue(tintUIValue));
+                m.SetFloat("_TintHue", SliderToShaderValue(tintHue));
+                m.SetFloat("_TintSat", SliderToShaderValue(tintSaturation));
+                m.SetFloat("_TintVal", SliderToShaderValue(tintValue));
 
-                float shaderTBTST = SliderToShaderValue(tintUIBlendSaturationThreshold);
+                float shaderTBTST = SliderToShaderValue(tintBlendSaturationThreshold);
                 m.SetFloat("_TintSatThreshold", shaderTBTST);
 
                 float shaderSatFalloff = Saturate(shaderTBTST * 0.75f);
                 m.SetFloat("_SaturationFalloff", shaderSatFalloff);
 
                 m.SetFloat("_SaturationWindow", shaderTBTST - shaderSatFalloff); // we divide by this in the shader too, but should only be 0 if the fraction is 0/0
-                m.SetFloat("_GlossMult", tintUIGloss * 0.01f);
+                m.SetFloat("_GlossMult", tintGloss * 0.01f);
             }
 
             if(isSymmetryCounterpart)
@@ -654,14 +794,14 @@ namespace DLTD.Modules
         // consider doing symmetry updates via the clipboard
         public void CloneValuesFrom(ModuleTintable t)
         {
-            //tintUIBlendPoint = t.tintUIBlendPoint;
-            //tintUIBlendBand = t.tintUIBlendBand;
-            //tintUIBlendFalloff = t.tintUIBlendFalloff;
-            //tintUIBlendSaturationThreshold = t.tintUIBlendSaturationThreshold;
-            //tintUIHue = t.tintUIHue;
-            //tintUISaturation = t.tintUISaturation;
-            //tintUIValue = t.tintUIValue;
-            //tintUIGloss = t.tintUIGloss;
+            //tintBlendPoint = t.tintBlendPoint;
+            //tintBlendBand = t.tintBlendBand;
+            //tintBlendFalloff = t.tintBlendFalloff;
+            //tintBlendSaturationThreshold = t.tintBlendSaturationThreshold;
+            //tintHue = t.tintHue;
+            //tintSaturation = t.tintSaturation;
+            //tintValue = t.tintValue;
+            //tintGloss = t.tintGloss;
         }
 
         public void SymmetryUpdate(ModuleTintable t )
@@ -694,13 +834,9 @@ namespace DLTD.Modules
               // belt & braces
             if (Palette == null)
             {
-                Palette = new List<PaletteEntry>();
+                Palette = new Palette();
             }
-            if (Palette.Count == 0)
-                Palette.Add(new PaletteEntry());
 
-            if (_clipboard == null)
-                _clipboard = new List<PaletteEntry>();
             //TDebug.Print(part.name + " OnAwake: paintableColours " + paintableColours + " prev/next visible " + UISection[(int)UISectionID.Selector].Active);
             //// temporary, need to store coloursets in save files
             //UIToColourSet(Palette[activePaletteEntry]);
@@ -715,12 +851,10 @@ namespace DLTD.Modules
             TDebug.Print(part.name + " OnStart: paintableColours " + paintableColours + " prev/next visible " + UISection[(int)UISectionID.Selector].Active);
             UISectionVisible(paintableColours > 1, (int)UISectionID.Selector);
 
-            // OnLoad should stick it's fingers into this
-            for (int i = Palette.Count; i < paintableColours; i++)
-                Palette.Add(new PaletteEntry());
+            Palette.Limit(paintableColours);            
 
             // need to serialise PaletteEntry
-            UIToColourSet(Palette[activePaletteEntry]);
+            UIToColourSet(Palette.Active());
 
             SetupUIFieldCallbacks();
             TraverseAndReplaceShaders();
@@ -734,14 +868,24 @@ namespace DLTD.Modules
             UIVisible(moduleActive);
         }
 
+        private static string PaletteTag = "PALETTE";
+
         public override void OnSave(ConfigNode node)
         {
+            var p = new ConfigNode(PaletteTag);
+            Palette.Save(p);
+
+            node.AddNode(p);
             base.OnSave(node);
         }
 
         public override void OnLoad(ConfigNode node)
         {
             base.OnLoad(node);
+
+            var p = node.GetNode(PaletteTag);
+            if (p != null)
+                Palette.Load(p);
 
             // temporary, dump a few fields
             TDebug.Print(part.name + "OnLoad:");
@@ -757,7 +901,7 @@ namespace DLTD.Modules
             if (needUpdate)
             {
                 needUpdate = false;
-                UIToColourSet(Palette[activePaletteEntry]);
+                UIToColourSet(Palette.Active());
                 UpdateShaderValues();
             }
         }

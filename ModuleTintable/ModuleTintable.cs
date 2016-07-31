@@ -255,7 +255,7 @@ namespace DLTD.Modules
         public Palette Palette;
 
         // use RGB values of mask to blend different coloursets if it has one
-        [KSPField]
+        [KSPField(isPersistant = true)]
         public string paintMask = null;
 
         // should only be set in part config if there's a mask
@@ -265,8 +265,11 @@ namespace DLTD.Modules
         // Intended for patching existing parts
         // Will use blend as well as paintmask alpha to determine whether to colour an area, as 
         // static paint is usually in the paintmask
-        [KSPField]
+        [KSPField(isPersistant = true)]
         public bool useBlendForStaticPaintMask = false;
+
+        [KSPField(isPersistant = true)]
+        List<string> ignoreGameObjects;
 
         private List<Material> ManagedMaterials;
 
@@ -411,7 +414,6 @@ namespace DLTD.Modules
         #region Reflection / field cache / GetSet methods
 
         // consider abstracting this stuff a bit. Preferably consider doing something more sane.
-        // Looks viable to be spun off into an interface, look at that in future
 
         private static Dictionary<string, MemberInfo> UIMembers; // Cache of field data with [Section] attrib via reflection. Don't use if there's any alternative.
         //     private static List<List<FieldInfo>> UISection;
@@ -513,13 +515,13 @@ namespace DLTD.Modules
 
         // these two need some work - creating lists just to dispose when you grab values is bad form
         // All fields
-        //public static List<string> GetKSPFieldKeys()
+        //public static List<string> GetKSPSectionEntityKeys()
         //{
         //    return new List<string>(UIMembers.Keys); // maybe just return (List<string>)UIMembers.Keys ?
         //}
 
         // only field names from a particular section
-        private static List<string> GetKSPFieldKeys( int section = 0 )
+        private static List<string> GetKSPSectionEntityKeys( int section = 0 )
         {
             if (section > UISection.Count || UISection[section] == null)
                 return null;
@@ -622,7 +624,7 @@ namespace DLTD.Modules
         //    if ((section > UISection.Count) || (UISection[section] == null))
         //        return;
 
-        //    var _SectionKeys = GetKSPFieldKeys(section);
+        //    var _SectionKeys = GetKSPSectionEntityKeys(section);
         //    for( int i = 0; i < _SectionKeys.Count; i++ )
         //    {
         //        UIMembers[_SectionKeys[i]].SetValue(this, fieldData[_SectionKeys[i]]);
@@ -792,17 +794,17 @@ namespace DLTD.Modules
 
         #region Counterparts
         // consider doing symmetry updates via the clipboard
-        public void CloneValuesFrom(ModuleTintable t)
-        {
-            //tintBlendPoint = t.tintBlendPoint;
-            //tintBlendBand = t.tintBlendBand;
-            //tintBlendFalloff = t.tintBlendFalloff;
-            //tintBlendSaturationThreshold = t.tintBlendSaturationThreshold;
-            //tintHue = t.tintHue;
-            //tintSaturation = t.tintSaturation;
-            //tintValue = t.tintValue;
-            //tintGloss = t.tintGloss;
-        }
+        //public void CloneValuesFrom(ModuleTintable t)
+        //{
+        //    tintBlendPoint = t.tintBlendPoint;
+        //    tintBlendBand = t.tintBlendBand;
+        //    tintBlendFalloff = t.tintBlendFalloff;
+        //    tintBlendSaturationThreshold = t.tintBlendSaturationThreshold;
+        //    tintHue = t.tintHue;
+        //    tintSaturation = t.tintSaturation;
+        //    tintValue = t.tintValue;
+        //    tintGloss = t.tintGloss;
+        //}
 
         public void SymmetryUpdate(ModuleTintable t )
         {

@@ -1,0 +1,12 @@
+ManifestFileVersion: 0
+AssetBundleManifest:
+  AssetBundleInfos:
+    Info_0:
+      Name: squadcore
+      Dependencies: {}
+    Info_1:
+      Name: shaders
+      Dependencies: {}
+    Info_2:
+      Name: dltdtintableshaders
+      Dependencies: {}

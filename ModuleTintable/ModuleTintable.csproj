@@ -53,6 +53,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AssetLoader.cs" />
+    <Compile Include="AssetManagement.cs" />
     <Compile Include="ModuleTintable.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

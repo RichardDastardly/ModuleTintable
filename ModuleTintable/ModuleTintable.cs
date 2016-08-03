@@ -8,6 +8,41 @@ using DLTD.Utility;
 
 namespace DLTD.Modules
 {
+    #region Asset Management
+    [KSPAddon(KSPAddon.Startup.MainMenu,true)]
+    public class ShaderAssetManager : MonoBehaviour
+    {
+        private Dictionary<string, AssetRecord> ReplacementShader;
+        private KSPPaths ModuleTintablePaths;
+
+        private readonly string ShaderBundle = "DLTDTintableShaders";
+        private readonly string BundleID = "ModuleTintable";
+
+        private AssetManager AssetMgr;
+        public static ShaderAssetManager instance;
+
+        public void Awake()
+        {
+            ReplacementShader = new Dictionary<string, AssetRecord>();
+            ModuleTintablePaths = new KSPPaths("DLTD/Plugins/ModuleTintable");
+        }
+
+        public void Start()
+        {
+            AssetMgr = AssetManager.instance;
+            instance = this;
+
+            AssetMgr.LoadModBundle(ModuleTintablePaths, ShaderBundle, BundleID);
+            var bundleContents = AssetMgr.GetAssetsOfType<Shader>(BundleID);
+
+            foreach( AssetRecord r in bundleContents.Values )
+            {
+                // pull replacement strings out of confignode
+                // add entry to ReplacementShader for each string
+            }
+        }
+    }
+    #endregion
     #region Custom Attributes
     [AttributeUsage(AttributeTargets.Field | AttributeTargets.Struct|AttributeTargets.Method )]
     public sealed class Section : Attribute

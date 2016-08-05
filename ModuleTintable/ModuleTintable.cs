@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
@@ -27,19 +28,29 @@ namespace DLTD.Modules
             ModuleTintablePaths = new KSPPaths("DLTD/Plugins/ModuleTintable");
         }
 
+        private IEnumerator LoadShaders()
+        {
+            var b = AssetMgr.LoadModBundle(ModuleTintablePaths, ShaderBundle, BundleID);
+            while (b.state != BundleState.Loaded)
+                yield return null;
+
+            var bundleContents = AssetMgr.GetAssetsOfType<Shader>(BundleID);
+
+            foreach (AssetRecord r in bundleContents.Values)
+            {
+                TDebug.Print("ShaderAssetManager got handed " + r.Asset.name + " from " + r.BundleID);
+                // pull replacement strings out of confignode
+                // add entry to ReplacementShader for each string
+            }
+        }
+
         public void Start()
         {
             AssetMgr = AssetManager.instance;
             instance = this;
 
-            AssetMgr.LoadModBundle(ModuleTintablePaths, ShaderBundle, BundleID);
-            var bundleContents = AssetMgr.GetAssetsOfType<Shader>(BundleID);
+            StartCoroutine(LoadShaders());
 
-            foreach( AssetRecord r in bundleContents.Values )
-            {
-                // pull replacement strings out of confignode
-                // add entry to ReplacementShader for each string
-            }
         }
     }
     #endregion

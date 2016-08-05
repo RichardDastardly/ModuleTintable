@@ -18,13 +18,13 @@ namespace DLTD.Utility
         private string _modsub;
         public string Mod
         {
-            get { return Base + "/" + _modsub; }
+            get { return Base + "/" + "GameData" + "/" +  _modsub; }
             set { _modsub = value; }
         }
         private string _pdLivesIn = "";
         public string PluginDataIsBelow
         {
-            set { _pdLivesIn = value + "/"; }
+            set { _pdLivesIn = value + Path.DirectorySeparatorChar; }
         }
 
         public string PluginData
@@ -32,16 +32,21 @@ namespace DLTD.Utility
             get { return Mod + "/" + _pdLivesIn + "PluginData"; }
         }
 
+        public string Packages
+        {
+            get { return Mod + "/" + "Packages"; }
+        }
+
         public KSPPaths( string m = null, string pdl = null )
         {
-            Base = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location).Replace("\\","/");
+            Base = Path.GetDirectoryName(KSPUtil.ApplicationRootPath);
             Mod = m;
             PluginDataIsBelow = pdl;
         }
     }
 
 
-    class AssetRecord
+    public class AssetRecord
     {
         public string BundleID;
         public UnityEngine.Object Asset;
@@ -54,6 +59,28 @@ namespace DLTD.Utility
         }
     }
 
+    public enum BundleState {  Unloaded, BundleLoading, AssetLoading, Loaded }
+
+    public class BundleRecord
+    {
+        public BundleState state;
+        public string BundleID;
+        public string BundleLoc;
+        public string BundleLocForWWW
+        {
+            get { return "file:///" + BundleLoc; }
+        }
+        public UnityEngine.Object[] Assets;
+        public ConfigNode Attributes;
+
+        public BundleRecord( string loc, string b_ID = "root", BundleState initialState = BundleState.Unloaded )
+        {
+            BundleID = b_ID;
+            BundleLoc = loc;
+            state = initialState;
+        }
+    }
+
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     class AssetManager : MonoBehaviour
     {
@@ -61,55 +88,79 @@ namespace DLTD.Utility
         // do some error checking please...
 
         public Dictionary<string, AssetRecord> Assets;
-        public Dictionary<string, UnityEngine.Object[]> AssetsByBundleID;
-        private string bundleLoaded = null;
+        public Dictionary<string, BundleRecord> AssetsByBundleID;
 
         public static AssetManager instance;
 
-        private IEnumerator LoadAssetBundle( string loc, string bundleID = "root" )
+        private IEnumerator LoadAssetBundle( BundleRecord b )
         {
             while (!Caching.ready)
                 yield return null;
 
-            using (WWW www = WWW.LoadFromCacheOrDownload(loc, 1))
+//            var bundleLoadRequest = AssetBundle.LoadFromFileAsync(b.BundleLoc);
+
+
+            b.state = BundleState.BundleLoading;
+            var www = WWW.LoadFromCacheOrDownload(b.BundleLocForWWW, 1);
+
+            yield return www;
+
+            if(!string.IsNullOrEmpty(www.error))
             {
-                var bundle = www.assetBundle;
-
-                AssetsByBundleID[bundleID] = bundle.LoadAllAssets();
-
-                for( int i = 0; i < AssetsByBundleID[bundleID].Length; i++)
-                {
-                    var n = AssetsByBundleID[bundleID][i].name;
-                    var a = new AssetRecord(AssetsByBundleID[bundleID][i], bundleID );
-                    Assets[n] = a;
-                    yield return www;
-                }
-
-                bundleLoaded = bundleID;
-                bundle.Unload(false);
+                Debug.Log(www.error);
+                yield break;
             }
+
+ //           TDebug.Print("LoadAssetBundle: bundle " + b.BundleID + " loaded from disk, preparing to load assets.");
+
+            var bundle = www.assetBundle;
+            b.state = BundleState.AssetLoading;
+            var assetsLoadRequest = bundle.LoadAllAssetsAsync();
+
+            yield return assetsLoadRequest;
+
+ //           TDebug.Print("LoadAssetBundle: bundle " + b.BundleID + " assets loaded.");
+
+            b.Assets = assetsLoadRequest.allAssets;
+
+            AssetsByBundleID[b.BundleID] = b;
+
+            for (int i = 0; i < b.Assets.Length; i++)
+            {
+                var n = b.Assets[i].name;
+                var a = new AssetRecord(b.Assets[i], b.BundleID);
+//                TDebug.Print("LoadAssetBundle: " + n);
+                Assets[n] = a;
+            }
+
+            b.state = BundleState.Loaded;
+            bundle.Unload(false);
+
         }
 
-        private IEnumerator LoadAssetAttributes( KSPPaths p, string bundleID )
+        private IEnumerator LoadAssetAttributes( KSPPaths p, BundleRecord b )
         {
-            while (bundleLoaded != bundleID)
+            while ( b.state != BundleState.Loaded )
                 yield return null;
 
-            var cfgFile = p.PluginData + "/" + bundleID + ".atr";
+            var cfgFile = p.Packages + Path.DirectorySeparatorChar + b.BundleID + ".atr";
             if (File.Exists(cfgFile))
             {
-                var cfg = ConfigNode.Load(cfgFile);
-                foreach (ConfigNode n in cfg.GetNodes())
+                b.Attributes = ConfigNode.Load(cfgFile);
+
+                foreach (ConfigNode n in b.Attributes.GetNodes())
                     if (Assets.ContainsKey(n.name))
                         Assets[n.name].Attributes = n;
             }
         }
 
-        public void LoadModBundle( KSPPaths p, string bundleFN, string bundleID )
+        public BundleRecord LoadModBundle( KSPPaths p, string bundleFN, string bundleID )
         {
-            bundleLoaded = null;
-            StartCoroutine(LoadAssetBundle(p.Mod + "/" + bundleFN.Replace("\\", "/"), bundleID));
-            StartCoroutine(LoadAssetAttributes(p, bundleID));
+   //         TDebug.Print("LoadModBundle: " + p.Mod + " " + bundleFN + " " + bundleID);
+            var b = new BundleRecord(p.Packages + "/" + bundleFN.Replace("\\", "/"), bundleID);
+            StartCoroutine(LoadAssetBundle(b));
+            StartCoroutine(LoadAssetAttributes(p, b));
+            return b;
         }
 
         public Dictionary<string,T> GetRawAssetsOfTypeBundledIn<T>( string bundleID ) where T : UnityEngine.Object
@@ -117,7 +168,7 @@ namespace DLTD.Utility
             if( AssetsByBundleID.ContainsKey( bundleID ))
             {
                 var r = new Dictionary<string, T>();
-                var c = AssetsByBundleID[bundleID];
+                var c = AssetsByBundleID[bundleID].Assets;
                 for (int i = 0; i < c.Length; i++)
                     if (c[i].GetType() == typeof(T))
                         r[c[i].name] = (T)c[i];
@@ -128,10 +179,14 @@ namespace DLTD.Utility
 
         public Dictionary<string,AssetRecord> GetAssetsOfType<T>( string b_ID = null ) where T : UnityEngine.Object
         {
+  //          TDebug.Print("GetAssetsOfType: getting entries of type " + typeof(T).ToString());
             var l = new Dictionary<string,AssetRecord>();
             foreach (var k in Assets.Keys)
-                if (Assets[k].Asset.GetType() == typeof(T) && ( b_ID != null && b_ID == Assets[k].BundleID ))
-                     l[k] = Assets[k];
+            {
+ //               TDebug.Print("GetAssetsOfType: asset " + Assets[k].Asset.name + " type " +Assets[k].Asset.GetType().ToString());
+                if ((Assets[k].Asset.GetType() == typeof(T) ) && (b_ID != null && b_ID == Assets[k].BundleID))
+                    l[k] = Assets[k];
+            }
             return l;
         }
 
@@ -139,7 +194,7 @@ namespace DLTD.Utility
         public void Awake()
         {
             Assets = new Dictionary<string, AssetRecord>();
-            AssetsByBundleID = new Dictionary<string, UnityEngine.Object[]>();
+            AssetsByBundleID = new Dictionary<string, BundleRecord>();
 
 
             DontDestroyOnLoad(this);

@@ -97,45 +97,45 @@ namespace DLTD.Utility
             while (!Caching.ready)
                 yield return null;
 
-//            var bundleLoadRequest = AssetBundle.LoadFromFileAsync(b.BundleLoc);
-
+            //            var bundleLoadRequest = AssetBundle.LoadFromFileAsync(b.BundleLoc);
+            //            var bundle = AssetBundle.CreateFromFile(b.BundleLoc);
 
             b.state = BundleState.BundleLoading;
-            var www = WWW.LoadFromCacheOrDownload(b.BundleLocForWWW, 1);
-
-            yield return www;
-
-            if(!string.IsNullOrEmpty(www.error))
+            using (WWW www = new WWW(b.BundleLocForWWW))
             {
-                Debug.Log(www.error);
-                yield break;
-            }
+                yield return www;
 
- //           TDebug.Print("LoadAssetBundle: bundle " + b.BundleID + " loaded from disk, preparing to load assets.");
+                if (!string.IsNullOrEmpty(www.error))
+                {
+                    Debug.Log(www.error);
+                    yield break;
+                }
 
-            var bundle = www.assetBundle;
-            b.state = BundleState.AssetLoading;
-            var assetsLoadRequest = bundle.LoadAllAssetsAsync();
+                //           TDebug.Print("LoadAssetBundle: bundle " + b.BundleID + " loaded from disk, preparing to load assets.");
 
-            yield return assetsLoadRequest;
+                var bundle = www.assetBundle;
+                b.state = BundleState.AssetLoading;
+                var assetsLoadRequest = bundle.LoadAllAssetsAsync();
+
+                yield return assetsLoadRequest;
 
  //           TDebug.Print("LoadAssetBundle: bundle " + b.BundleID + " assets loaded.");
 
-            b.Assets = assetsLoadRequest.allAssets;
+                b.Assets = assetsLoadRequest.allAssets;
 
-            AssetsByBundleID[b.BundleID] = b;
+                AssetsByBundleID[b.BundleID] = b;
 
-            for (int i = 0; i < b.Assets.Length; i++)
-            {
-                var n = b.Assets[i].name;
-                var a = new AssetRecord(b.Assets[i], b.BundleID);
-//                TDebug.Print("LoadAssetBundle: " + n);
-                Assets[n] = a;
+                for (int i = 0; i < b.Assets.Length; i++)
+                {
+                    var n = b.Assets[i].name;
+                    var a = new AssetRecord(b.Assets[i], b.BundleID);
+                    //                TDebug.Print("LoadAssetBundle: " + n);
+                    Assets[n] = a;
+                }
+
+                b.state = BundleState.Loaded;
+                bundle.Unload(false);
             }
-
-            b.state = BundleState.Loaded;
-            bundle.Unload(false);
-
         }
 
         private IEnumerator LoadAssetAttributes( KSPPaths p, BundleRecord b )

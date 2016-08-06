@@ -37,10 +37,10 @@ namespace DLTD.Utility
             get { return Mod + "/" + "Packages"; }
         }
 
-        public KSPPaths( string m = null, string pdl = null )
+        public KSPPaths( string modName = null, string pdl = null )
         {
             Base = Path.GetDirectoryName(KSPUtil.ApplicationRootPath);
-            Mod = m;
+            Mod = modName;
             PluginDataIsBelow = pdl;
         }
     }
@@ -52,10 +52,10 @@ namespace DLTD.Utility
         public UnityEngine.Object Asset;
         public ConfigNode Attributes;
 
-        public AssetRecord( UnityEngine.Object a, string b = "root" )
+        public AssetRecord( UnityEngine.Object asset, string b_ID = "root" )
         {
-            Asset = a;
-            BundleID = b;
+            Asset = asset;
+            BundleID = b_ID;
         }
     }
 
@@ -92,7 +92,7 @@ namespace DLTD.Utility
 
         public static AssetManager instance;
 
-        private IEnumerator LoadAssetBundle( BundleRecord b )
+        private IEnumerator LoadAssetBundle( BundleRecord bundleRec )
         {
             while (!Caching.ready)
                 yield return null;
@@ -100,8 +100,8 @@ namespace DLTD.Utility
             //            var bundleLoadRequest = AssetBundle.LoadFromFileAsync(b.BundleLoc);
             //            var bundle = AssetBundle.CreateFromFile(b.BundleLoc);
 
-            b.state = BundleState.BundleLoading;
-            using (WWW www = new WWW(b.BundleLocForWWW))
+            bundleRec.state = BundleState.BundleLoading;
+            using (WWW www = new WWW(bundleRec.BundleLocForWWW))
             {
                 yield return www;
 
@@ -114,76 +114,76 @@ namespace DLTD.Utility
                 //           TDebug.Print("LoadAssetBundle: bundle " + b.BundleID + " loaded from disk, preparing to load assets.");
 
                 var bundle = www.assetBundle;
-                b.state = BundleState.AssetLoading;
+                bundleRec.state = BundleState.AssetLoading;
                 var assetsLoadRequest = bundle.LoadAllAssetsAsync();
 
                 yield return assetsLoadRequest;
 
- //           TDebug.Print("LoadAssetBundle: bundle " + b.BundleID + " assets loaded.");
+                //           TDebug.Print("LoadAssetBundle: bundle " + b.BundleID + " assets loaded.");
 
-                b.Assets = assetsLoadRequest.allAssets;
+                bundleRec.Assets = assetsLoadRequest.allAssets;
 
-                AssetsByBundleID[b.BundleID] = b;
+                AssetsByBundleID[bundleRec.BundleID] = bundleRec;
 
-                for (int i = 0; i < b.Assets.Length; i++)
+                for (int i = 0; i < bundleRec.Assets.Length; i++)
                 {
-                    var n = b.Assets[i].name;
-                    var a = new AssetRecord(b.Assets[i], b.BundleID);
+                    var assetName = bundleRec.Assets[i].name;
+                    var assetRec = new AssetRecord(bundleRec.Assets[i], bundleRec.BundleID);
                     //                TDebug.Print("LoadAssetBundle: " + n);
-                    Assets[n] = a;
+                    Assets[assetName] = assetRec;
                 }
 
-                b.state = BundleState.Loaded;
+                bundleRec.state = BundleState.Loaded;
                 bundle.Unload(false);
             }
         }
 
         private string attributeTag = "ASSET_ATTRIBUTE";
 
-        private IEnumerator LoadAssetAttributes( KSPPaths p, BundleRecord b )
+        private IEnumerator LoadAssetAttributes( BundleRecord bundleRec)
         {
-            while ( b.state != BundleState.Loaded )
+            while (bundleRec.state != BundleState.Loaded )
                 yield return null;
 
-            var cfgFile = b.BundleLoc + ".atr";
+            var cfgFile = bundleRec.BundleLoc + ".atr";
             //TDebug.Print("Loading attributes for bundle " + b.BundleID + " from " + cfgFile);
 
             if (File.Exists(cfgFile))
             {
                 //TDebug.Print(cfgFile + " exists, loading...");
-                b.Attributes = ConfigNode.Load(cfgFile);
+                bundleRec.Attributes = ConfigNode.Load(cfgFile);
 
-                foreach (ConfigNode n in b.Attributes.GetNodes(attributeTag))
+                foreach (ConfigNode node in bundleRec.Attributes.GetNodes(attributeTag))
                 {
-                    var name = n.GetValue("name");
+                    var name = node.GetValue("name");
                     //TDebug.Print("Attribute loader looking for " + name);
                     if (Assets.ContainsKey(name))
                     {
-                        Assets[name].Attributes = n;
+                        Assets[name].Attributes = node;
                     }
                 }
             }
         }
 
-        public BundleRecord LoadModBundle( KSPPaths p, string bundleFN, string bundleID )
+        public BundleRecord LoadModBundle( KSPPaths modPaths, string bundleFN, string bundleID )
         {
    //         TDebug.Print("LoadModBundle: " + p.Mod + " " + bundleFN + " " + bundleID);
-            var b = new BundleRecord(p.Packages + "/" + bundleFN.Replace("\\", "/"), bundleID);
-            StartCoroutine(LoadAssetBundle(b));
-            StartCoroutine(LoadAssetAttributes(p, b));
-            return b;
+            var bundleRec = new BundleRecord(modPaths.Packages + "/" + bundleFN.Replace("\\", "/"), bundleID);
+            StartCoroutine(LoadAssetBundle(bundleRec));
+            StartCoroutine(LoadAssetAttributes(bundleRec));
+            return bundleRec;
         }
 
         public Dictionary<string,T> GetRawAssetsOfTypeBundledIn<T>( string bundleID ) where T : UnityEngine.Object
         {
             if( AssetsByBundleID.ContainsKey( bundleID ))
             {
-                var r = new Dictionary<string, T>();
-                var c = AssetsByBundleID[bundleID].Assets;
-                for (int i = 0; i < c.Length; i++)
-                    if (c[i].GetType() == typeof(T))
-                        r[c[i].name] = (T)c[i];
-                return r;
+                var rawAssets = new Dictionary<string, T>();
+                var assetList = AssetsByBundleID[bundleID].Assets;
+                for (int i = 0; i < assetList.Length; i++)
+                    if (assetList[i].GetType() == typeof(T))
+                        rawAssets[assetList[i].name] = (T)assetList[i];
+                return rawAssets;
             }
             return null;
         }
@@ -191,14 +191,14 @@ namespace DLTD.Utility
         public Dictionary<string,AssetRecord> GetAssetsOfType<T>( string b_ID = null ) where T : UnityEngine.Object
         {
   //          TDebug.Print("GetAssetsOfType: getting entries of type " + typeof(T).ToString());
-            var l = new Dictionary<string,AssetRecord>();
+            var assetRecords = new Dictionary<string,AssetRecord>();
             foreach (var k in Assets.Keys)
             {
  //               TDebug.Print("GetAssetsOfType: asset " + Assets[k].Asset.name + " type " +Assets[k].Asset.GetType().ToString());
                 if ((Assets[k].Asset.GetType() == typeof(T) ) && (b_ID != null && b_ID == Assets[k].BundleID))
-                    l[k] = Assets[k];
+                    assetRecords[k] = Assets[k];
             }
-            return l;
+            return assetRecords;
         }
 
 

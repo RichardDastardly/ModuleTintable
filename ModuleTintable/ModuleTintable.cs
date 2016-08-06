@@ -104,6 +104,9 @@ namespace DLTD.Modules
                     ConfigNode.LoadObjectFromConfig(newShaderRec, assetRec.Attributes);
                     newShaderRec.Replace = assetRec.Attributes.GetValues("replace");
                     Shaders.Add(newShaderRec);
+
+                    if (ManagedShaders == null)
+                        ManagedShaders = new List<string>();
                     ManagedShaders.Add(newShaderRec.Shader.name);
 
                     //TDebug.Print("ShaderAssetManager added " + newShaderRec.Shader.name);
@@ -137,6 +140,7 @@ namespace DLTD.Modules
         }
     }
     #endregion
+
     #region Custom Attributes
     [AttributeUsage(AttributeTargets.Field | AttributeTargets.Struct|AttributeTargets.Method )]
     public sealed class Section : Attribute
@@ -398,7 +402,7 @@ namespace DLTD.Modules
         public bool useBlendForStaticPaintMask = false;
 
         [KSPField(isPersistant = true)]
-        List<string> ignoreGameObjects;
+        public string[] ignoreGameObjects;
 
         private List<Material> ManagedMaterials;
 
@@ -1005,10 +1009,10 @@ namespace DLTD.Modules
 
         public override void OnSave(ConfigNode node)
         {
-            var p = new ConfigNode(PaletteTag);
-            Palette.Save(p);
+            var paletteNode = new ConfigNode(PaletteTag);
+            Palette.Save(paletteNode);
 
-            node.AddNode(p);
+            node.AddNode(paletteNode);
             base.OnSave(node);
         }
 
@@ -1016,9 +1020,11 @@ namespace DLTD.Modules
         {
             base.OnLoad(node);
 
-            var p = node.GetNode(PaletteTag);
-            if (p != null)
-                Palette.Load(p);
+            var paletteNode = node.GetNode(PaletteTag);
+            if (paletteNode != null)
+                Palette.Load(paletteNode);
+
+            ignoreGameObjects = node.GetValues("ignoreGameObject");
 
             // temporary, dump a few fields
             //TDebug.Print(part.name + "OnLoad:");

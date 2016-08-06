@@ -138,19 +138,30 @@ namespace DLTD.Utility
             }
         }
 
+        private string attributeTag = "ASSET_ATTRIBUTE";
+
         private IEnumerator LoadAssetAttributes( KSPPaths p, BundleRecord b )
         {
             while ( b.state != BundleState.Loaded )
                 yield return null;
 
-            var cfgFile = p.Packages + Path.DirectorySeparatorChar + b.BundleID + ".atr";
+            var cfgFile = b.BundleLoc + ".atr";
+            //TDebug.Print("Loading attributes for bundle " + b.BundleID + " from " + cfgFile);
+
             if (File.Exists(cfgFile))
             {
+                //TDebug.Print(cfgFile + " exists, loading...");
                 b.Attributes = ConfigNode.Load(cfgFile);
 
-                foreach (ConfigNode n in b.Attributes.GetNodes())
-                    if (Assets.ContainsKey(n.name))
-                        Assets[n.name].Attributes = n;
+                foreach (ConfigNode n in b.Attributes.GetNodes(attributeTag))
+                {
+                    var name = n.GetValue("name");
+                    //TDebug.Print("Attribute loader looking for " + name);
+                    if (Assets.ContainsKey(name))
+                    {
+                        Assets[name].Attributes = n;
+                    }
+                }
             }
         }
 

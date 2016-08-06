@@ -10,10 +10,61 @@ using DLTD.Utility;
 namespace DLTD.Modules
 {
     #region Asset Management
+
+    public enum ShaderOverlayMask { None, Explicit, UseDefaultTexture };
+
+    public class ShaderRecord
+    {
+        [Persistent]
+        public string[] Replace;
+
+        [Persistent]
+        public bool useBlend = false;
+
+        [Persistent]
+        public bool usePaintMask = false;
+
+        [Persistent]
+        public ShaderOverlayMask shadingOverlayType = ShaderOverlayMask.None;
+
+        public Shader Shader;
+        
+        public ShaderRecord( Shader s )
+        {
+            Shader = s;
+        }
+
+        public bool isReplacementFor( string s )
+        {
+            for( int i = 0; i < Replace.Length; i++)
+            {
+                if (Replace[i] == s)
+                    return true;
+            }
+            return false;
+        }
+
+        public void _dumpToLog()
+        {
+            if (Replace == null)
+                Replace = new string[0];
+            var s = "Record "+ Shader.name + ": Replaces: ";
+            for (int i = 0; i < Replace.Length; i++)
+                s += Replace[i] + " ";
+
+            s += " useBlend: " + useBlend.ToString();
+            s += " usePaintMask: " + usePaintMask.ToString();
+            s += " shadingOverlayType: " + shadingOverlayType.ToString();
+            TDebug.Print(s);
+            
+        }
+    }
+
+
     [KSPAddon(KSPAddon.Startup.MainMenu,true)]
     public class ShaderAssetManager : MonoBehaviour
     {
-        private Dictionary<string, AssetRecord> ReplacementShader;
+        private List<ShaderRecord> Shaders;
         private KSPPaths ModuleTintablePaths;
 
         private readonly string ShaderBundle = "DLTDTintableShaders";
@@ -24,7 +75,7 @@ namespace DLTD.Modules
 
         public void Awake()
         {
-            ReplacementShader = new Dictionary<string, AssetRecord>();
+            Shaders = new List<ShaderRecord>();
             ModuleTintablePaths = new KSPPaths("DLTD/Plugins/ModuleTintable");
         }
 
@@ -39,9 +90,24 @@ namespace DLTD.Modules
             foreach (AssetRecord r in bundleContents.Values)
             {
                 TDebug.Print("ShaderAssetManager got handed " + r.Asset.name + " from " + r.BundleID);
-                // pull replacement strings out of confignode
-                // add entry to ReplacementShader for each string
+                if ( r.Attributes != null )
+                {
+                    var s = new ShaderRecord(r.Asset as Shader);
+                    ConfigNode.LoadObjectFromConfig(s, r.Attributes);
+                    Shaders.Add(s);
+                    TDebug.Print("ShaderAssetManager added " + s.Shader.name);
+                    s._dumpToLog();
+                }
             }
+        }
+
+        public ShaderRecord GetReplacementShaderFor( string s )
+        {
+            for (int i = 0; i < Shaders.Count; i++)
+                if (Shaders[i].isReplacementFor(s))
+                    return Shaders[i];
+
+            return null;
         }
 
         public void Start()

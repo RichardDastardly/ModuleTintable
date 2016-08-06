@@ -71,6 +71,7 @@ namespace DLTD.Modules
     public class ShaderAssetManager : MonoBehaviour
     {
         private List<ShaderRecord> Shaders;
+        private List<string> ManagedShaders;
         private KSPPaths ModuleTintablePaths;
 
         private readonly string ShaderBundle = "DLTDTintableShaders";
@@ -103,6 +104,7 @@ namespace DLTD.Modules
                     ConfigNode.LoadObjectFromConfig(newShaderRec, assetRec.Attributes);
                     newShaderRec.Replace = assetRec.Attributes.GetValues("replace");
                     Shaders.Add(newShaderRec);
+                    ManagedShaders.Add(newShaderRec.Shader.name);
 
                     //TDebug.Print("ShaderAssetManager added " + newShaderRec.Shader.name);
                     newShaderRec._dumpToLog();
@@ -118,6 +120,11 @@ namespace DLTD.Modules
                     return Shaders[i];
 
             return null;
+        }
+
+        public bool IsManagedShader( string shaderName )
+        {
+            return ManagedShaders.Contains(shaderName);
         }
 
         public void Start()
@@ -808,7 +815,7 @@ namespace DLTD.Modules
                     m.shader = replacementShader.Shader;
                     manageThisMaterial = true;
                 }
-                else if ( AssetLoader.IsReplacementShader( m.shader.name ))
+                else if (SAM.IsManagedShader( m.shader.name ))
                 {
                     manageThisMaterial = true;
                 }

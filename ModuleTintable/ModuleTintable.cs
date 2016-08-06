@@ -27,18 +27,21 @@ namespace DLTD.Modules
         [Persistent]
         public ShaderOverlayMask shadingOverlayType = ShaderOverlayMask.None;
 
+        [Persistent]
+        public int numColourAreas = 1;
+
         public Shader Shader;
         
-        public ShaderRecord( Shader s )
+        public ShaderRecord( Shader newShader )
         {
-            Shader = s;
+            Shader = newShader;
         }
 
-        public bool isReplacementFor( string s )
+        public bool isReplacementFor( string shaderNameToReplace)
         {
             for( int i = 0; i < Replace.Length; i++)
             {
-                if (Replace[i] == s)
+                if (Replace[i] == shaderNameToReplace)
                     return true;
             }
             return false;
@@ -47,7 +50,10 @@ namespace DLTD.Modules
         public void _dumpToLog()
         {
             if (Replace == null)
+            {
+                TDebug.Print("No replacements found :(");
                 Replace = new string[0];
+            }
             var s = "Record "+ Shader.name + ": Replaces: ";
             for (int i = 0; i < Replace.Length; i++)
                 s += Replace[i] + " ";
@@ -72,6 +78,7 @@ namespace DLTD.Modules
 
         private AssetManager AssetMgr;
         public static ShaderAssetManager instance;
+        public static bool shadersLoaded = false;
 
         public void Awake()
         {
@@ -87,24 +94,27 @@ namespace DLTD.Modules
 
             var bundleContents = AssetMgr.GetAssetsOfType<Shader>(BundleID);
 
-            foreach (AssetRecord r in bundleContents.Values)
+            foreach (AssetRecord assetRec in bundleContents.Values)
             {
-                TDebug.Print("ShaderAssetManager got handed " + r.Asset.name + " from " + r.BundleID);
-                if ( r.Attributes != null )
+                //TDebug.Print("ShaderAssetManager got handed " + assetRec.Asset.name + " from " + assetRec.BundleID);
+                if (assetRec.Attributes != null )
                 {
-                    var s = new ShaderRecord(r.Asset as Shader);
-                    ConfigNode.LoadObjectFromConfig(s, r.Attributes);
-                    Shaders.Add(s);
-                    TDebug.Print("ShaderAssetManager added " + s.Shader.name);
-                    s._dumpToLog();
+                    var newShaderRec = new ShaderRecord(assetRec.Asset as Shader);
+                    ConfigNode.LoadObjectFromConfig(newShaderRec, assetRec.Attributes);
+                    newShaderRec.Replace = assetRec.Attributes.GetValues("replace");
+                    Shaders.Add(newShaderRec);
+
+                    //TDebug.Print("ShaderAssetManager added " + newShaderRec.Shader.name);
+                    newShaderRec._dumpToLog();
                 }
             }
+            shadersLoaded = true;
         }
 
-        public ShaderRecord GetReplacementShaderFor( string s )
+        public ShaderRecord GetReplacementShaderFor( string shaderNameToReplace )
         {
             for (int i = 0; i < Shaders.Count; i++)
-                if (Shaders[i].isReplacementFor(s))
+                if (Shaders[i].isReplacementFor(shaderNameToReplace))
                     return Shaders[i];
 
             return null;
@@ -766,8 +776,10 @@ namespace DLTD.Modules
 
         private void TraverseAndReplaceShaders()
         {
-            if (!AssetLoader.shadersLoaded)
+            if (!ShaderAssetManager.shadersLoaded)
                 return;
+
+            var SAM = ShaderAssetManager.instance;
 
             if (!needShaderReplacement)
             {
@@ -790,10 +802,10 @@ namespace DLTD.Modules
                 bool manageThisMaterial = false;
                 Material m = Materials[i];
 
-                var replacementShader = AssetLoader.FetchRepacementShader(m.shader.name);
-                if (replacementShader)
+                var replacementShader = SAM.GetReplacementShaderFor(m.shader.name);
+                if (replacementShader != null )
                 {
-                    m.shader = replacementShader;
+                    m.shader = replacementShader.Shader;
                     manageThisMaterial = true;
                 }
                 else if ( AssetLoader.IsReplacementShader( m.shader.name ))
@@ -962,7 +974,7 @@ namespace DLTD.Modules
             base.OnStart(state);
             part.OnEditorAttach += new Callback(OnEditorAttach);
 
-            TDebug.Print(part.name + " OnStart: paintableColours " + paintableColours + " prev/next visible " + UISection[(int)UISectionID.Selector].Active);
+            //TDebug.Print(part.name + " OnStart: paintableColours " + paintableColours + " prev/next visible " + UISection[(int)UISectionID.Selector].Active);
             UISectionVisible(paintableColours > 1, (int)UISectionID.Selector);
 
             Palette.Limit(paintableColours);            
@@ -1002,9 +1014,9 @@ namespace DLTD.Modules
                 Palette.Load(p);
 
             // temporary, dump a few fields
-            TDebug.Print(part.name + "OnLoad:");
+            //TDebug.Print(part.name + "OnLoad:");
  //           TDebug.Print("Paintmask: " + paintMask);
-            TDebug.Print(part.name + "PaintableColours: " + paintableColours);
+            //TDebug.Print(part.name + "PaintableColours: " + paintableColours);
  //           TDebug.Print("useBlendForStaticPaintMask: " + useBlendForStaticPaintMask.ToString());
 
             UISectionVisible(paintableColours > 1, (int)UISectionID.Selector);

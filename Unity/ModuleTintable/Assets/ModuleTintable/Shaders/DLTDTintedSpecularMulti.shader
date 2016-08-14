@@ -3,7 +3,7 @@ Shader "DLTD/Tinted Specular Multi"
 	Properties 
 	{
 		_MainTex("_MainTex (RGB spec(A)", 2D) = "white" {}
-		_Mask("_Mask (Greyscale)", 2D) = "white" {}
+		_BlendMask("_BlendMask (Greyscale)", 2D) = "white" {}
 		_BumpMap("_BumpMap", 2D) = "bump" {}
 		_Colour ("Main Colour", Color) = (1,1,1,1)
 		_SpecColour ("Specular Colour", Color) = (0.5, 0.5, 0.5, 1)
@@ -30,8 +30,8 @@ Shader "DLTD/Tinted Specular Multi"
 
 		CGPROGRAM
 
-#pragma multi_compile BLEND BLENDMASK 
-#pragma multi_compile __ EMISSIVE BUMP
+#pragma multi_compile __ BLENDMASK 
+#pragma multi_compile __ EMISSIVE BUMPMAP
 
 		#pragma surface surf NormalizedBlinnPhong keepalpha
 		#pragma target 3.0
@@ -42,13 +42,13 @@ Shader "DLTD/Tinted Specular Multi"
 		float4 _Colour;
 
 #if defined (BLENDMASK)
-		sampler2D _Mask;
+		sampler2D _BlendMask;
 #endif
 #if defined (EMISSIVE)
 		float4 _EmissiveColor;
 		sampler2D _Emissive;
 #endif
-#if defined (BUMP)
+#if defined (BUMPMAP)
 		sampler2D _BumpMap;
 #endif
 
@@ -63,7 +63,7 @@ Shader "DLTD/Tinted Specular Multi"
 		struct Input
 		{
 			float2 uv_MainTex;
-#if defined (BUMP)
+#if defined (BUMPMAP)
 			float2 uv_BumpMap;
 #endif
 #if defined (EMISSIVE)
@@ -75,10 +75,8 @@ Shader "DLTD/Tinted Specular Multi"
 		void surf (Input IN, inout SurfaceOutput o)
 		{
 			float4 color = tex2D(_MainTex, (IN.uv_MainTex)); // *_BurnColour;
-#if defined (BLENDMASK)
-			float3 blend = tex2D(_Mask, (IN.uv_MainTex));
-#endif
-#if defined (BUMP)
+
+#if defined (BUMPMAP)
 			float3 normal = UnpackNormal(tex2D(_BumpMap, IN.uv_BumpMap));
 #else
 			float3 normal = float3(0,0,1);
@@ -92,7 +90,9 @@ Shader "DLTD/Tinted Specular Multi"
 			emission += (tex2D(_Emissive, IN.uv_Emissive).rgb * _EmissiveColor.rgb) * _EmissiveColor.a;
 #endif
 
-#if defined (BLEND)
+#if defined (BLENDMASK)
+			float3 blend = tex2D(_BlendMask, (IN.uv_MainTex));
+#else
 			float blend = BlendFactor(color);
 #endif
 

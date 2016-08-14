@@ -9,201 +9,22 @@ using DLTD.Utility;
 
 namespace DLTD.Modules
 {
-    #region Asset Management
-
-    public enum ShaderOverlayMask { None, Explicit, UseDefaultTexture };
-
-    public abstract class ShaderAbstract
-    {
-        [Persistent]
-        public string[] Replace;
-
-        [Persistent]
-        public bool useBlend = false;
-
-        [Persistent]
-        public bool usePaintMask = false;
-
-        [Persistent]
-        public ShaderOverlayMask shadingOverlayType = ShaderOverlayMask.None;
-
-        [Persistent]
-        public int numColourAreas = 1;
-
-        public Shader Shader;
-
-        protected ShaderAbstract(Shader newShader)
-        {
-            Shader = newShader;
-        }
-    }
-
-    public class ShaderRecord : ShaderAbstract
-    {
-        public ShaderRecord(Shader newShader) : base(newShader)
-        {
-        }
-
-        // this needs more sophistication - possible to have two shaders who replace
-        // a single existing one with different conditions
-        public bool isReplacementFor( string shaderNameToReplace)
-        {
-            for( int i = 0; i < Replace.Length; i++)
-            {
-                if (Replace[i] == shaderNameToReplace)
-                    return true;
-            }
-            return false;
-        }
-
-        public void _dumpToLog()
-        {
-            if (Replace == null)
-            {
-                TDebug.Print("No replacements found :(");
-                Replace = new string[0];
-            }
-            var s = "Record "+ Shader.name + ": Replaces: ";
-            for (int i = 0; i < Replace.Length; i++)
-                s += Replace[i] + " ";
-
-            s += " useBlend: " + useBlend.ToString();
-            s += " usePaintMask: " + usePaintMask.ToString();
-            s += " shadingOverlayType: " + shadingOverlayType.ToString();
-            TDebug.Print(s);
-            
-        }
-    }
-
-    // this should be instanciated by ModuleTintable in shader replacement mode to hold records for shader objects attached to gameobjects
-    // Module should keep a toplevel default one & have it linked to individual gameobjects
-    // unless there's an alternative specified
-
-    public class ShaderGameObject : ShaderAbstract, IConfigNode
-    {
-
-        [Persistent]
-        public Dictionary<string, string> Maps; // store EXTRA maps here unless you really want to replace a default map
-
-        public ShaderGameObject(Shader newShader) : base(newShader)
-        {
-            Maps = new Dictionary<string, string>();
-        }
-
-        public void ReplaceShaderIn( Material materialForReplacement )
-        {
-            materialForReplacement.shader = Shader;
-            foreach( var mapEntry in Maps )
-            {
-                if( materialForReplacement.HasProperty( mapEntry.Key ))
-                    materialForReplacement.SetTexture(mapEntry.Key, GameDatabase.Instance.GetTexture(mapEntry.Value, false));
-            }
-        }
-
-        public void Load( ConfigNode node )
-        {
-            var mapEntries = node.GetValues("Map");
-            for( int i = 0; i < mapEntries.Length; i++ )
-            {
-                var mapSplit = mapEntries[i].Split(',');
-                if (mapSplit[0] != null && mapSplit[1] != null)
-                    Maps[mapSplit[0].Trim()] = mapSplit[1].Trim();
-            }
-        }
-
-        public void Save( ConfigNode node ) // I don't exactly care about this!
-        {
-            foreach (var mapEntry in Maps)
-            {
-                node.AddValue("Map", mapEntry.Key + "," + mapEntry.Value);
-            }
-        }
-    }
-
-
-    [KSPAddon(KSPAddon.Startup.MainMenu,true)]
-    public class ShaderAssetManager : MonoBehaviour
-    {
-        private List<ShaderRecord> Shaders;
-        private List<string> ManagedShaders;
-        private KSPPaths ModuleTintablePaths;
-
-        private readonly string ShaderBundle = "DLTDTintableShaders";
-        private readonly string BundleID = "ModuleTintable";
-
-        private AssetManager AssetMgr;
-        public static ShaderAssetManager instance;
-        public static bool shadersLoaded = false;
-
-        public void Awake()
-        {
-            Shaders = new List<ShaderRecord>();
-            ModuleTintablePaths = new KSPPaths("DLTD/Plugins/ModuleTintable");
-        }
-
-        private IEnumerator LoadShaders()
-        {
-            var b = AssetMgr.LoadModBundle(ModuleTintablePaths, ShaderBundle, BundleID);
-            while (b.state != BundleState.Loaded)
-                yield return null;
-
-            var bundleContents = AssetMgr.GetAssetsOfType<Shader>(BundleID);
-
-            foreach (AssetRecord assetRec in bundleContents.Values)
-            {
-                //TDebug.Print("ShaderAssetManager got handed " + assetRec.Asset.name + " from " + assetRec.BundleID);
-                if (assetRec.Attributes != null )
-                {
-                    var newShaderRec = new ShaderRecord(assetRec.Asset as Shader);
-                    ConfigNode.LoadObjectFromConfig(newShaderRec, assetRec.Attributes);
-                    newShaderRec.Replace = assetRec.Attributes.GetValues("replace");
-                    Shaders.Add(newShaderRec);
-
-                    if (ManagedShaders == null)
-                        ManagedShaders = new List<string>();
-                    ManagedShaders.Add(newShaderRec.Shader.name);
-
-                    //TDebug.Print("ShaderAssetManager added " + newShaderRec.Shader.name);
-                    newShaderRec._dumpToLog();
-                }
-            }
-            shadersLoaded = true;
-        }
-
-        public ShaderRecord GetReplacementShaderFor( string shaderNameToReplace )
-        {
-            for (int i = 0; i < Shaders.Count; i++)
-                if (Shaders[i].isReplacementFor(shaderNameToReplace))
-                    return Shaders[i];
-
-            return null;
-        }
-
-        public bool IsManagedShader( string shaderName )
-        {
-            return ManagedShaders.Contains(shaderName);
-        }
-
-        public void Start()
-        {
-            AssetMgr = AssetManager.instance;
-            instance = this;
-
-            StartCoroutine(LoadShaders());
-
-        }
-    }
-    #endregion
 
     #region Custom Attributes
-    [AttributeUsage(AttributeTargets.Field | AttributeTargets.Struct|AttributeTargets.Method )]
+    [AttributeUsage(AttributeTargets.Field | AttributeTargets.Struct|AttributeTargets.Method|AttributeTargets.Property )]
     public sealed class Section : Attribute
     {
         public int section = 1;
+        public bool uiEntry = true;
 
         public Section(int section)
         {
             this.section = section;
+        }
+
+        public Section(int section, bool uiEntry) : this ( section )
+        {
+            this.uiEntry = uiEntry;
         }
     }
     #endregion
@@ -211,7 +32,7 @@ namespace DLTD.Modules
     #region PaletteEntry
     public class PaletteEntry : IConfigNode
     {
-        private Dictionary<string, float> _Settings = new Dictionary<string, float>();
+        protected Dictionary<string, float> _Settings = new Dictionary<string, float>();
 
         public Dictionary<string, float> Values
         {
@@ -225,6 +46,16 @@ namespace DLTD.Modules
             }
         }
 
+        public float this[string key]
+        {
+            get { try { return _Settings[key]; } catch (KeyNotFoundException) { return 0; } }
+            set { _Settings[key] = value; }
+        }
+
+        public Color Colour
+        {
+            get { return HSVtoRGB(_Settings["tintHue"], _Settings["tintSaturation"], _Settings["tintValue"]); }
+        }
 
         private List<bool> SectionFlags = new List<bool>();
 
@@ -287,6 +118,89 @@ namespace DLTD.Modules
         {
             t.Values = Values;
         }
+
+        public static Color HSVtoRGB(float H, float S, float V)
+        {
+            float R, G, B;
+
+            H = H % 360;
+
+            if (V <= 0)
+            {
+                R = G = B = 0;
+            }
+            else if (S <= 0)
+            {
+                R = G = B = V;
+            }
+            else
+            {
+                float hf = H / 60.0f;
+                int i = (int)Mathf.Floor(hf);
+                float f = hf - i;
+                float pv = V * (1 - S);
+                float qv = V * (1 - S * f);
+                float tv = V * (1 - S * (1 - f));
+                switch (i)
+                {
+                    // Red is the dominant color
+                    case 0:
+                        R = V;
+                        G = tv;
+                        B = pv;
+                        break;
+                    // Green is the dominant color
+                    case 1:
+                        R = qv;
+                        G = V;
+                        B = pv;
+                        break;
+                    case 2:
+                        R = pv;
+                        G = V;
+                        B = tv;
+                        break;
+                    // Blue is the dominant color
+                    case 3:
+                        R = pv;
+                        G = qv;
+                        B = V;
+                        break;
+                    case 4:
+                        R = tv;
+                        G = pv;
+                        B = V;
+                        break;
+                    // Red is the dominant color
+                    case 5:
+                        R = V;
+                        G = pv;
+                        B = qv;
+                        break;
+                    // Just in case we overshoot on our math by a little, we put these here. Since its a switch it won't slow us down at all to put these here.
+                    case 6:
+                        R = V;
+                        G = tv;
+                        B = pv;
+                        break;
+                    case -1:
+                        R = V;
+                        G = pv;
+                        B = qv;
+                        break;
+                    // The color is not defined, we should throw an error.
+                    default:
+                        //LFATAL("i Value error in Pixel conversion, Value is %d", i);
+                        R = G = B = V; // Just pretend its black/white
+                        break;
+                }
+            }
+            return new Color(
+                Mathf.Clamp01(R),
+                Mathf.Clamp01(G),
+                Mathf.Clamp01(B));
+        }
+
     }
     #endregion
 
@@ -307,6 +221,10 @@ namespace DLTD.Modules
 
         public int activeEntry = 0;
         private int _EntryCount = 1;
+        public int Length
+        {
+            get { return _EntryCount; }
+        }
 
         public Palette()
         {
@@ -486,6 +404,18 @@ namespace DLTD.Modules
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Blend Saturation Threshold"),
          UI_FloatRange(minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
         public float tintBlendSaturationThreshold = 0;
+
+        [Section(1, uiEntry = false)]
+        public float saturationFalloff
+        {
+            get { return Mathf.Clamp01(tintBlendSaturationThreshold * 0.75f); }
+        }
+
+        [Section(1, uiEntry = false)]
+        public float saturationWindow
+        {
+            get { return tintBlendSaturationThreshold - saturationFalloff; }
+        }
 
         [Section(2)]
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Tint Hue"),
@@ -684,18 +614,20 @@ namespace DLTD.Modules
                 //TDebug.Print("Structure cache checking field " + _uiMembers[i].Name);
                 if (Attribute.IsDefined(_uiMembers[i], typeof(Section)))
                 {
-                    UIMembers[_uiMembers[i].Name] = _uiMembers[i];
                     var _SectionAttr = (Section)Attribute.GetCustomAttribute(_uiMembers[i], typeof(Section));
+                    if (_SectionAttr.uiEntry)
+                    {
+                        while (UISection.Count <= _SectionAttr.section)
+                            UISection.Add(new UIControlSection());
+                        UIMembers[_uiMembers[i].Name] = _uiMembers[i];
 
-                    while (UISection.Count <= _SectionAttr.section)
-                        UISection.Add(new UIControlSection());
+                        TDebug.Print("Structure cache saving field " + _uiMembers[i].Name + " to section " + _SectionAttr.section + " . Type " + _uiMembers[i].MemberType.ToString());
 
-                    TDebug.Print("Structure cache saving field " + _uiMembers[i].Name + " to section "+ _SectionAttr.section+ " . Type " + _uiMembers[i].MemberType.ToString());
-
-                    // section 0 is all fields with [Section] attributes
-                    var _entry = new UIControlEntity(0, _uiMembers[i].MemberType, _uiMembers[i].Name);
-                    UISection[0].Add( _entry );
-                    UISection[_SectionAttr.section].Add(_entry);
+                        // section 0 is all fields with [Section] attributes
+                        var _entry = new UIControlEntity(0, _uiMembers[i].MemberType, _uiMembers[i].Name);
+                        UISection[0].Add(_entry);
+                        UISection[_SectionAttr.section].Add(_entry);
+                    }
                 }
             }
             structureCachePopulated = true;
@@ -904,91 +836,7 @@ namespace DLTD.Modules
             return Mathf.Clamp01(v);
         }
 
-        public static Color HSVtoRGB(Vector3 hsv)
-        {
-            float H = hsv[0];
-            float S = hsv[1];
-            float V = hsv[2];
 
-            float R, G, B;
-
-            H = H % 360;
-
-            if (V <= 0)
-            {
-                R = G = B = 0;
-            }
-            else if (S <= 0)
-            {
-                R = G = B = V;
-            }
-            else
-            {
-                float hf = H / 60.0f;
-                int i = (int)Mathf.Floor(hf);
-                float f = hf - i;
-                float pv = V * (1 - S);
-                float qv = V * (1 - S * f);
-                float tv = V * (1 - S * (1 - f));
-                switch (i)
-                {
-                    // Red is the dominant color
-                    case 0:
-                        R = V;
-                        G = tv;
-                        B = pv;
-                        break;
-                    // Green is the dominant color
-                    case 1:
-                        R = qv;
-                        G = V;
-                        B = pv;
-                        break;
-                    case 2:
-                        R = pv;
-                        G = V;
-                        B = tv;
-                        break;
-                    // Blue is the dominant color
-                    case 3:
-                        R = pv;
-                        G = qv;
-                        B = V;
-                        break;
-                    case 4:
-                        R = tv;
-                        G = pv;
-                        B = V;
-                        break;
-                    // Red is the dominant color
-                    case 5:
-                        R = V;
-                        G = pv;
-                        B = qv;
-                        break;
-                    // Just in case we overshoot on our math by a little, we put these here. Since its a switch it won't slow us down at all to put these here.
-                    case 6:
-                        R = V;
-                        G = tv;
-                        B = pv;
-                        break;
-                    case -1:
-                        R = V;
-                        G = pv;
-                        B = qv;
-                        break;
-                    // The color is not defined, we should throw an error.
-                    default:
-                        //LFATAL("i Value error in Pixel conversion, Value is %d", i);
-                        R = G = B = V; // Just pretend its black/white
-                        break;
-                }
-            }
-            return new Color(
-                Mathf.Clamp01(R),
-                Mathf.Clamp01(G),
-                Mathf.Clamp01(B));
-        }
 
         private void UpdateShaderValues()
         {

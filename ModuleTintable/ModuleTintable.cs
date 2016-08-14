@@ -13,7 +13,7 @@ namespace DLTD.Modules
 
     public enum ShaderOverlayMask { None, Explicit, UseDefaultTexture };
 
-    public class ShaderRecord
+    public abstract class ShaderAbstract
     {
         [Persistent]
         public string[] Replace;
@@ -31,12 +31,21 @@ namespace DLTD.Modules
         public int numColourAreas = 1;
 
         public Shader Shader;
-        
-        public ShaderRecord( Shader newShader )
+
+        protected ShaderAbstract(Shader newShader)
         {
             Shader = newShader;
         }
+    }
 
+    public class ShaderRecord : ShaderAbstract
+    {
+        public ShaderRecord(Shader newShader) : base(newShader)
+        {
+        }
+
+        // this needs more sophistication - possible to have two shaders who replace
+        // a single existing one with different conditions
         public bool isReplacementFor( string shaderNameToReplace)
         {
             for( int i = 0; i < Replace.Length; i++)
@@ -63,6 +72,51 @@ namespace DLTD.Modules
             s += " shadingOverlayType: " + shadingOverlayType.ToString();
             TDebug.Print(s);
             
+        }
+    }
+
+    // this should be instanciated by ModuleTintable in shader replacement mode to hold records for shader objects attached to gameobjects
+    // Module should keep a toplevel default one & have it linked to individual gameobjects
+    // unless there's an alternative specified
+
+    public class ShaderGameObject : ShaderAbstract, IConfigNode
+    {
+
+        [Persistent]
+        public Dictionary<string, string> Maps; // store EXTRA maps here unless you really want to replace a default map
+
+        public ShaderGameObject(Shader newShader) : base(newShader)
+        {
+            Maps = new Dictionary<string, string>();
+        }
+
+        public void ReplaceShaderIn( Material materialForReplacement )
+        {
+            materialForReplacement.shader = Shader;
+            foreach( var mapEntry in Maps )
+            {
+                if( materialForReplacement.HasProperty( mapEntry.Key ))
+                    materialForReplacement.SetTexture(mapEntry.Key, GameDatabase.Instance.GetTexture(mapEntry.Value, false));
+            }
+        }
+
+        public void Load( ConfigNode node )
+        {
+            var mapEntries = node.GetValues("Map");
+            for( int i = 0; i < mapEntries.Length; i++ )
+            {
+                var mapSplit = mapEntries[i].Split(',');
+                if (mapSplit[0] != null && mapSplit[1] != null)
+                    Maps[mapSplit[0].Trim()] = mapSplit[1].Trim();
+            }
+        }
+
+        public void Save( ConfigNode node ) // I don't exactly care about this!
+        {
+            foreach (var mapEntry in Maps)
+            {
+                node.AddValue("Map", mapEntry.Key + "," + mapEntry.Value);
+            }
         }
     }
 
@@ -387,9 +441,13 @@ namespace DLTD.Modules
         [KSPField]
         public Palette Palette;
 
-        // use RGB values of mask to blend different coloursets if it has one
+        // second texture ( primary should always be MainTex in shader
+        // translator in shader attributes
         [KSPField(isPersistant = true)]
-        public string paintMask = null;
+        public string secondTex = null;
+
+        [KSPField(isPersistant = true)]
+        public string thirdTex = null;
 
         // should only be set in part config if there's a mask
         [KSPField(isPersistant = true)]
@@ -846,6 +904,92 @@ namespace DLTD.Modules
             return Mathf.Clamp01(v);
         }
 
+        public static Color HSVtoRGB(Vector3 hsv)
+        {
+            float H = hsv[0];
+            float S = hsv[1];
+            float V = hsv[2];
+
+            float R, G, B;
+
+            H = H % 360;
+
+            if (V <= 0)
+            {
+                R = G = B = 0;
+            }
+            else if (S <= 0)
+            {
+                R = G = B = V;
+            }
+            else
+            {
+                float hf = H / 60.0f;
+                int i = (int)Mathf.Floor(hf);
+                float f = hf - i;
+                float pv = V * (1 - S);
+                float qv = V * (1 - S * f);
+                float tv = V * (1 - S * (1 - f));
+                switch (i)
+                {
+                    // Red is the dominant color
+                    case 0:
+                        R = V;
+                        G = tv;
+                        B = pv;
+                        break;
+                    // Green is the dominant color
+                    case 1:
+                        R = qv;
+                        G = V;
+                        B = pv;
+                        break;
+                    case 2:
+                        R = pv;
+                        G = V;
+                        B = tv;
+                        break;
+                    // Blue is the dominant color
+                    case 3:
+                        R = pv;
+                        G = qv;
+                        B = V;
+                        break;
+                    case 4:
+                        R = tv;
+                        G = pv;
+                        B = V;
+                        break;
+                    // Red is the dominant color
+                    case 5:
+                        R = V;
+                        G = pv;
+                        B = qv;
+                        break;
+                    // Just in case we overshoot on our math by a little, we put these here. Since its a switch it won't slow us down at all to put these here.
+                    case 6:
+                        R = V;
+                        G = tv;
+                        B = pv;
+                        break;
+                    case -1:
+                        R = V;
+                        G = pv;
+                        B = qv;
+                        break;
+                    // The color is not defined, we should throw an error.
+                    default:
+                        //LFATAL("i Value error in Pixel conversion, Value is %d", i);
+                        R = G = B = V; // Just pretend its black/white
+                        break;
+                }
+            }
+            return new Color(
+                Mathf.Clamp01(R),
+                Mathf.Clamp01(G),
+                Mathf.Clamp01(B));
+        }
+
         private void UpdateShaderValues()
         {
 
@@ -980,9 +1124,9 @@ namespace DLTD.Modules
 
         }
 
-        public override void OnStart(StartState state)
+        public void Start(StartState state)
         {
-            base.OnStart(state);
+        //    base.OnStart(state);
             part.OnEditorAttach += new Callback(OnEditorAttach);
 
             //TDebug.Print(part.name + " OnStart: paintableColours " + paintableColours + " prev/next visible " + UISection[(int)UISectionID.Selector].Active);

@@ -1,6 +1,6 @@
 ﻿Shader "DLTD/SpecularPaintMask" {
 	Properties{
-		[Header(Temporarly Colour pickers)]
+		[Header(Temporary Colour pickers)]
 		_Color1("Color1", Color) = (1,1,1,1)
 		_Color2("Color2", Color) = (1,1,1,1)
 		_Color3("Color3", Color) = (1,1,1,1)
@@ -21,8 +21,8 @@
 		_OverlaySpec("Blend Overlay level with Spec", Range(0,1)) = 0.1
 		_Shininess("Phong tightness", Range(0.03, 1)) = 0.078125
 
-			[HideInInspector]_RimFalloff("_RimFalloff", Range(0.01,5)) = 0.1
-			[HideInInspector]_RimColor("_RimColor", Color) = (0,0,0,0)
+			_RimFalloff("_RimFalloff", Range(0.01,5)) = 0.1
+			_RimColor("_RimColor", Color) = (0,0,0,0)
 			[HideInInspector]_TemperatureColor("_TemperatureColor", Color) = (0,0,0,0)
 			[HideInInspector]_BurnColor("_Burn Color", Color) = (1,1,1,1)
 	}
@@ -102,7 +102,7 @@
 				paintMasked = paint * _PaintMaskSelector;
 
 				// somehow despite using a singular value as a selector here, the shader is blending channels
-				// it's actually useful but I'm not sure *why* it's doing it at the moment
+				// it's actually useful but I'm not sure *why* it's doing it at the moment - I suspect it's in the paint selector swizzle
 				// paintSelected is the index to Colours[] - it's the 0-1 8 bit greyscale value from the selected channel
 				// multiplied by the number of used elements of Colours[]
 				paintSelected = max(max(paintMasked.r, paintMasked.b), paintMasked.g) * usableColours;

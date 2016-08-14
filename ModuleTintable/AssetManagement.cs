@@ -21,6 +21,12 @@ namespace DLTD.Utility
             get { return Base + "/" + "GameData" + "/" +  _modsub; }
             set { _modsub = value; }
         }
+
+        public string ModRelative
+        {
+            get { return _modsub; }
+        }
+
         private string _pdLivesIn = "";
         public string PluginDataIsBelow
         {
@@ -76,7 +82,7 @@ namespace DLTD.Utility
         public BundleRecord( string loc, string b_ID = "root", BundleState initialState = BundleState.Unloaded )
         {
             BundleID = b_ID;
-            BundleLoc = loc;
+            BundleLoc = loc.Replace("\\", "/");
             state = initialState;
         }
     }
@@ -168,7 +174,7 @@ namespace DLTD.Utility
         public BundleRecord LoadModBundle( KSPPaths modPaths, string bundleFN, string bundleID )
         {
    //         TDebug.Print("LoadModBundle: " + p.Mod + " " + bundleFN + " " + bundleID);
-            var bundleRec = new BundleRecord(modPaths.Packages + "/" + bundleFN.Replace("\\", "/"), bundleID);
+            var bundleRec = new BundleRecord(modPaths.Packages + "/" + bundleFN, bundleID);
             StartCoroutine(LoadAssetBundle(bundleRec));
             StartCoroutine(LoadAssetAttributes(bundleRec));
             return bundleRec;

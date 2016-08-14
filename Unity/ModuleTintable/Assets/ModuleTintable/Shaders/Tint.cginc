@@ -8,6 +8,7 @@
 float _TintHue;
 float _TintSat;
 float _TintVal;
+float3 _TintCol;
 float _TintPoint;
 float _TintBand;
 float _TintFalloff;

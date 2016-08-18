@@ -10,12 +10,13 @@ Shader "DLTD/Tinted Specular Multi"
 		[Toggle(BUMPMAP)] _EnableBump("Bump?", Int ) = 0
 		[Normal]_BumpMap("_BumpMap", 2D) = "bump" {}
 
-		_Color ("Main Colour", Color) = (1,1,1,1)
-		_SpecColour ("Specular Colour", Color) = (0.5, 0.5, 0.5, 1)
-		_Shininess ("Shininess", Range (0.03, 1)) = 0.078125
+		_Color("Main Colour", Color) = (1,1,1,1)
+		_SpecColour("Specular Colour", Color) = (0.5, 0.5, 0.5, 1)
+		_Shininess("Shininess", Range(0.03, 1)) = 0.078125
+		_GlossMult("Gloss multiplier", Range(0,1)) = 1
 
 
-			[Toggle(EMISSIVE)] _EnableEmissive("Emissive?", Int ) = 0
+		[Toggle(EMISSIVE)] _EnableEmissive("Emissive?", Int ) = 0
 		_EmissiveColor("_EmissiveColor", Color) = (0,0,0,1)
 		_Emissive("_Emissive", 2D) = "white" {}
 
@@ -24,8 +25,8 @@ Shader "DLTD/Tinted Specular Multi"
 		_RimFalloff("_RimFalloff", Range(0.01,5) ) = 0.1
 		_RimColour("_RimColour", Color) = (0,0,0,0)
 
-			[HideInInspector]_TemperatureColor("_TemperatureColour", Color) = (0,0,0,0)
-			[HideInInspector]_BurnColor ("_Burn Colour", Color) = (1,1,1,1)
+		[HideInInspector]_TemperatureColor("_TemperatureColour", Color) = (0,0,0,0)
+		[HideInInspector]_BurnColor ("_Burn Colour", Color) = (1,1,1,1)
 
 	}
 	

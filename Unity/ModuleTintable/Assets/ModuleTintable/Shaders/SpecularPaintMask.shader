@@ -21,10 +21,10 @@
 		_OverlaySpec("Blend Overlay level with Spec", Range(0,1)) = 0.1
 		_Shininess("Phong tightness", Range(0.03, 1)) = 0.078125
 
-			_RimFalloff("_RimFalloff", Range(0.01,5)) = 0.1
-			_RimColor("_RimColor", Color) = (0,0,0,0)
-			[HideInInspector]_TemperatureColor("_TemperatureColor", Color) = (0,0,0,0)
-			[HideInInspector]_BurnColor("_Burn Color", Color) = (1,1,1,1)
+		_RimFalloff("_RimFalloff", Range(0.01,5)) = 0.1
+		_RimColor("_RimColor", Color) = (0,0,0,0)
+		[HideInInspector]_TemperatureColor("_TemperatureColor", Color) = (0,0,0,0)
+		[HideInInspector]_BurnColor("_Burn Color", Color) = (1,1,1,1)
 	}
 		SubShader{
 			Tags { "RenderType" = "Opaque" }
@@ -49,7 +49,7 @@
 			fixed4 _Color2;
 			fixed4 _Color3;
 			fixed4 _Color4;
-			fixed4 Colours[17];
+			fixed4 Colour[17];
 			fixed usableColours = 4;
 			half _Shininess;
 
@@ -91,11 +91,11 @@
 
 				// temporary - will be written in from C#, this is just to make the inspector usable
 				usableColours = 4;
-				Colours[0] = float4(0.5, 0.5, 0.5, 1.0);
-				Colours[1] = _Color1;
-				Colours[2] = _Color2;
-				Colours[3] = _Color3;
-				Colours[4] = _Color4;
+				Colour[0] = float4(0.5, 0.5, 0.5, 1.0);
+				Colour[1] = _Color1;
+				Colour[2] = _Color2;
+				Colour[3] = _Color3;
+				Colour[4] = _Color4;
 
 				// Select paint mask channel
 				// _PaintMaskSelector contains a RGB value corresponding to how much of each channel of the paint mask to blend
@@ -116,7 +116,7 @@
 				// this lets the shader pass through common pre-painted parts like labels which shouldn't be recoloured ever, and 
 				// also parts of the map which simply aren't to be painted on.
 				// The Overlay map will still be blended over this
-				paintFinal = lerp( paint.rgb, lerp(Colours[paintLower], Colours[ceil(paintSelected)], paintSelected - paintLower), paint.a );
+				paintFinal = lerp( paint.rgb, lerp(Colour[paintLower], Colour[ceil(paintSelected)], paintSelected - paintLower), paint.a );
 
 
 				// _OverlaySelector is again a RGB value to pick up the right channel

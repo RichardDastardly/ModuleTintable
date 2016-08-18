@@ -91,7 +91,10 @@ namespace DLTD.Utility
 
             var shaderKeywords = node.GetValues("testForKeyword");
             if (shaderKeywords.Length > 0)
+            {
+ //               TDebug.Print("Shader " + Shader.name + " has " + shaderKeywords.Length + " defined keyword tests.");
                 Keywords = new List<string>(shaderKeywords);
+            }
         }
     }
 
@@ -126,14 +129,17 @@ namespace DLTD.Utility
                 {
                     var paletteEntry = tintPalette[i];
                     foreach (var shaderParams in ParameterMap)
-                    {
+                    {                                                                                                                                                                                                                                                                                                                                 
  //                       TDebug.Print("Palette["+i+"] " + shaderParams.Key + "->" + shaderParams.Value + ": "+paletteEntry.GetForShader(shaderParams.Key));
                         var f = paletteEntry.GetForShader(shaderParams.Key);
                         if(f != null)
                             managedMat.SetFloat(shaderParams.Value, (float)f);
                     }
- 
-                    managedMat.SetColor("_Color", paletteEntry.Colour);
+
+                    if (i == 0 && numColourAreas == 1)
+                        managedMat.SetColor("_Color", paletteEntry.Colour);
+                    else
+                        managedMat.SetColor("Color" + i, paletteEntry.Colour);
                 }
             }
         }
@@ -149,6 +155,7 @@ namespace DLTD.Utility
             Maps = new Dictionary<string, string>();
         }
 
+        // well this is ugly, I'm really sure there's a better way
         public ShaderReplacementController( ShaderAbstract prefab ) : this( prefab.Shader )
         {
             if (prefab.ParameterMap != null)
@@ -157,6 +164,8 @@ namespace DLTD.Utility
             Shader = prefab.Shader;
             disableBlendUIfor = prefab.disableBlendUIfor;
             numColourAreas = prefab.numColourAreas;
+            Keywords = prefab.Keywords;
+            useBlend = prefab.useBlend;
         }
 
         private bool shaderKeywordExists(string kw)
@@ -181,7 +190,7 @@ namespace DLTD.Utility
 
             for (int i = 0; i < Keywords.Count; i++)
             {
-                TDebug.Print("Shader " + Shader.name + " Testing for keyword " + Keywords[i]);
+ //               TDebug.Print("Shader " + Shader.name + " Testing for keyword " + Keywords[i]);
                 if (managedMat.HasProperty("_" + Keywords[i]))
                 {
                     kwToEnable.Add(Keywords[i]);
@@ -194,16 +203,22 @@ namespace DLTD.Utility
 
             for (int i = 0; i < kwToEnable.Count; i++)
             {
-                TDebug.Print("Enabling keyword " + kwToEnable[i] + " for existing mat");
+ //               TDebug.Print("Enabling keyword " + kwToEnable[i] + " for existing mat");
                 managedMat.EnableKeyword(kwToEnable[i].ToUpper());
             }
+
+            managedMat.SetFloat("usableColours", numColourAreas);
 
             foreach (var mapEntry in Maps)
             {
                 if (managedMat.HasProperty("_" + mapEntry.Key))
                 {
                     TDebug.Print("Setting texture " + mapEntry.Key + " for new shader mat");
-                    managedMat.SetTexture("_" + mapEntry.Key, GameDatabase.Instance.GetTexture(mapEntry.Value, false));
+                    var mat = GameDatabase.Instance.GetTexture(mapEntry.Value, false);
+                    if (mat != null)
+                        managedMat.SetTexture("_" + mapEntry.Key, mat);
+                    else
+                        Debug.LogError("GetTexture failed for " + mapEntry.Value + ", ignoring map insertion");
                 }
                 else
                     Debug.LogError("Attempted to set map property " + mapEntry.Key + " in shader " + managedMat.shader.name);
@@ -213,26 +228,42 @@ namespace DLTD.Utility
                 // that way if we try and set the map we get the correct shader functionality
                 
                 mapKey = mapEntry.Key.ToUpper();
-                if (shaderKeywordExists(mapKey))
+ //               if (shaderKeywordExists(mapKey))
+ // I think shader.Keywords is set by EnableKeywords...
                 {
-                    TDebug.Print("Enabling keyword " + mapKey + " from keyword scan");
+                    TDebug.Print("Attempting to enable keyword " + mapKey + " from keyword scan");
                     managedMat.EnableKeyword(mapKey);
                 }
 
             }
             if (disableBlendUIfor != null && shaderKeywordExists(disableBlendUIfor.ToUpper()))
+            {
+                TDebug.Print("useBlend set to " + !managedMat.IsKeywordEnabled(disableBlendUIfor.ToUpper()));
                 useBlend = !managedMat.IsKeywordEnabled(disableBlendUIfor.ToUpper());
+            }
         }
 
-        public void Load(ConfigNode node)
+        private void splitMaps(string[] mapEntries)
         {
-            var mapEntries = node.GetValues("Map");
             for (int i = 0; i < mapEntries.Length; i++)
             {
                 var mapSplit = mapEntries[i].Split(',');
                 if (mapSplit[0] != null && mapSplit[1] != null)
                     Maps[mapSplit[0].Trim()] = mapSplit[1].Trim();
             }
+        }
+
+        public void Load(ConfigNode node)
+        {
+            var mapEntries = node.GetValues("Map");
+            if (mapEntries != null)
+                splitMaps(mapEntries);
+        }
+
+        public void Load( string[] mapEntries )
+        {
+            if (mapEntries != null)
+                splitMaps(mapEntries);
         }
 
         public void Save(ConfigNode node) // I don't exactly care about this!
@@ -294,6 +325,15 @@ namespace DLTD.Utility
                 }
             }
             shadersLoaded = true;
+        }
+
+        public ShaderReplacementController GetShader( string shaderName )
+        {
+            for (int i = 0; i < Shaders.Count; i++)
+                if (Shaders[i].Shader.name == shaderName)
+                    return new ShaderReplacementController(Shaders[i]);
+
+            return null;
         }
 
         public ShaderReplacementController GetReplacementShaderFor(string shaderNameToReplace)

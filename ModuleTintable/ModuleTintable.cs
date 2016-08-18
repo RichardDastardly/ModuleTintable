@@ -225,7 +225,7 @@ namespace DLTD.Modules
         private List<PaletteEntry> _pStore;
         public PaletteEntry this[int index]
         {
-            get { return _pStore[Mathf.Clamp(index, 0, _pStore.Count)]; }
+            get { return _pStore[Mathf.Clamp(index, 0, _pStore.Count-1)]; }
             set { _pStore[index] = value; }
         }
 
@@ -374,26 +374,16 @@ namespace DLTD.Modules
         [KSPField]
         public Palette Palette;
 
-        // second texture ( primary should always be MainTex in shader
-        // translator in shader attributes
-        [KSPField(isPersistant = true)]
-        public string secondTex = null;
-
-        [KSPField(isPersistant = true)]
-        public string thirdTex = null;
-
         // should only be set in part config if there's a mask
         [KSPField(isPersistant = true)]
         public int paintableColours = 1;
 
-        // Intended for patching existing parts
-        // Will use blend as well as paintmask alpha to determine whether to colour an area, as 
-        // static paint is usually in the paintmask
         [KSPField(isPersistant = true)]
-        public bool useBlendForStaticPaintMask = false;
+        public string requestShader;
 
   //      [KSPField(isPersistant = true)]
         public string[] ignoreGameObjects;
+        public string[] rawMaps;
 
         //        private List<Material> ManagedMaterials;
         private List<ShaderReplacementController> ManagedMaterials;
@@ -446,7 +436,7 @@ namespace DLTD.Modules
         [Section(2)]
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Tint Value"),
           UI_FloatRange(minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
-        public float tintValue = 0;
+        public float tintValue = 150;
 
         [Section(3)]
         [KSPEvent(guiActive = false, guiActiveEditor = true, guiName = "Next colour")]
@@ -488,29 +478,6 @@ namespace DLTD.Modules
         public float tintTightness = 100;
 
         #region Clipboard
-
-        //private static List<PaletteEntry> _clipboard;
-        //private static List<PaletteEntry> Clipboard
-        //{
-        //    set {
-        //        _clipboard.Clear(); // does this call the destructor of each element?
-
-        //        for (int i = 0; i < value.Count; i++)
-        //        {
-        //            _clipboard.Add(new PaletteEntry(value[i]));
-        //        }
-        //    }
-
-        //    get { // not sure how useful this really is
-
-        //        var t = new List<PaletteEntry>();
-        //        for (int i = 0; i < _clipboard.Count; i++)
-        //        {
-        //            t.Add(new PaletteEntry(_clipboard[i]));
-        //        }
-        //        return t;
-        //    }
-        //}
 
         private static Palette _cb;
         private static Palette Clipboard
@@ -842,10 +809,18 @@ namespace DLTD.Modules
                 bool manageThisMaterial = false;
                 Material m = Materials[i];
 
-                var replacementShader = SAM.GetReplacementShaderFor(m.shader.name);
+                ShaderReplacementController replacementShader = null;
+
+                if (requestShader != null)
+                    replacementShader = SAM.GetShader(requestShader);
+
+                if (replacementShader == null )
+                    replacementShader = SAM.GetReplacementShaderFor(m.shader.name);
+
                 if (replacementShader != null )
                 {
-                    //                   m.shader = replacementShader.Shader;
+                    if( rawMaps != null )
+                        replacementShader.Load(rawMaps);
                     replacementShader.ReplaceShaderIn(m);
                     manageThisMaterial = true;
                 }
@@ -854,8 +829,16 @@ namespace DLTD.Modules
                     manageThisMaterial = true;
                 }
 
-                if(manageThisMaterial)
+                if (manageThisMaterial && replacementShader != null )
+                {
                     ManagedMaterials.Add(replacementShader);
+                    if (i == 0)
+                        UISectionVisible(replacementShader.useBlend, (int)UISectionID.Blend);
+                }
+                else
+                {
+                    TDebug.Print("Replacement shader is null for " + part.name);
+                }
 
             }
 
@@ -868,39 +851,11 @@ namespace DLTD.Modules
             needShaderReplacement = false;
         }
 
-        private static float SliderToShaderValue( float v ) {
-            return v / 255;
-        }
-
-        private static float Saturate( float v ) {
-            return Mathf.Clamp01(v);
-        }
-
-
-
         private void UpdateShaderValues()
         {
 
             for (int i = 0; i <  ManagedMaterials.Count; i++ ) 
             {
-                //Material m = ManagedMaterials[i];
-                //m.SetFloat("_TintPoint", SliderToShaderValue(tintBlendPoint));
-                //m.SetFloat("_TintBand", SliderToShaderValue(tintBlendBand));
-
-                //float tintFalloff = SliderToShaderValue(tintBlendFalloff);
-                //m.SetFloat("_TintFalloff", (tintFalloff > 0 ) ? tintFalloff : 0.001f ); // we divide by this in the shader
-                //m.SetFloat("_TintHue", SliderToShaderValue(tintHue));
-                //m.SetFloat("_TintSat", SliderToShaderValue(tintSaturation));
-                //m.SetFloat("_TintVal", SliderToShaderValue(tintValue));
-
-                //float shaderTBTST = SliderToShaderValue(tintBlendSaturationThreshold);
-                //m.SetFloat("_TintSatThreshold", shaderTBTST);
-
-                //float shaderSatFalloff = Saturate(shaderTBTST * 0.75f);
-                //m.SetFloat("_SaturationFalloff", shaderSatFalloff);
-
-                //m.SetFloat("_SaturationWindow", shaderTBTST - shaderSatFalloff); // we divide by this in the shader too, but should only be 0 if the fraction is 0/0
-                //m.SetFloat("_GlossMult", tintGloss * 0.01f);
                 ManagedMaterials[i].UpdateShaderWith(Palette);
             }
 
@@ -1062,6 +1017,8 @@ namespace DLTD.Modules
             var goNode = node.GetValue("ignoreGameObjects");
             if( goNode != null )
                 ignoreGameObjects = goNode.Split(',');
+
+            rawMaps = node.GetValues("Map");
 
             // temporary, dump a few fields
             //TDebug.Print(part.name + "OnLoad:");

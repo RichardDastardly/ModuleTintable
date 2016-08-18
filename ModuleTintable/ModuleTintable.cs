@@ -826,6 +826,7 @@ namespace DLTD.Modules
                 }
                 else if (SAM.IsManagedShader( m.shader.name ))
                 {
+                    TDebug.Print("This is a managed shader");
                     manageThisMaterial = true;
                 }
 
@@ -835,11 +836,6 @@ namespace DLTD.Modules
                     if (i == 0)
                         UISectionVisible(replacementShader.useBlend, (int)UISectionID.Blend);
                 }
-                else
-                {
-                    TDebug.Print("Replacement shader is null for " + part.name);
-                }
-
             }
 
             if( ManagedMaterials.Count > 0)
@@ -916,22 +912,10 @@ namespace DLTD.Modules
 
 
         #region Counterparts
-        // consider doing symmetry updates via the clipboard
-        //public void CloneValuesFrom(ModuleTintable t)
-        //{
-        //    tintBlendPoint = t.tintBlendPoint;
-        //    tintBlendBand = t.tintBlendBand;
-        //    tintBlendFalloff = t.tintBlendFalloff;
-        //    tintBlendSaturationThreshold = t.tintBlendSaturationThreshold;
-        //    tintHue = t.tintHue;
-        //    tintSaturation = t.tintSaturation;
-        //    tintValue = t.tintValue;
-        //    tintGloss = t.tintGloss;
-        //}
-
         public void SymmetryUpdate(ModuleTintable t )
         {
-            SetKSPFields(t.GetKSPFields());
+            //           SetKSPFields(t.GetKSPFields());
+            Palette = t.Palette;
             needUpdate = true;
             moduleActive = true;
             isSymmetryCounterpart = true;

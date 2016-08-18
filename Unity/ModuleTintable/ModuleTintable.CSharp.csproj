@@ -76,6 +76,9 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Assets\BuildAssetBundle.cs.cs" />
+    <Compile Include="Assets\CustomMaterialEditor.cs" />
+    <Compile Include="Assets\DLTDMultiInspector.cs" />
+    <Compile Include="Assets\DLTDMultiShaderGUI.cs" />
     <Compile Include="Assets\Properties.cs" />
   </ItemGroup>
   <ItemGroup>
@@ -107,6 +110,7 @@
     <None Include="Assets\SquadCore\Shaders\SpecularTransparent.shader" />
     <None Include="Assets\SquadCore\Shaders\Unlit.shader" />
     <None Include="Assets\SquadCore\Shaders\UnlitTransparent.shader" />
+    <None Include="Assets\XML\dltdtintableshaders_bundle.xml" />
     <None Include="Assets\XML\shaders_bundle.xml" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath)\SyntaxTree\UnityVS\2015\UnityVS.CSharp.targets" />

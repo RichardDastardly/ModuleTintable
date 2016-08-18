@@ -9,4 +9,5 @@ AssetBundleManifest:
       Dependencies: {}
     Info_2:
       Name: dltdtintableshaders
-      Dependencies: {}
+      Dependencies:
+        Dependency_0: squadcore

@@ -61,7 +61,7 @@ namespace DLTD.Modules
 
         public PaletteEntry() { }
 
-        public PaletteEntry( PaletteEntry clone )
+        public PaletteEntry(PaletteEntry clone)
         {
             Values = clone.Values;
         }
@@ -73,6 +73,18 @@ namespace DLTD.Modules
                 return _Settings[k];
             }
             catch (KeyNotFoundException)
+            {
+                return null;
+            }
+        }
+
+        public float? GetForShader(string k)
+        {
+            try
+            {
+                return Mathf.Clamp01(_Settings[k] / 255);
+            }
+            catch(KeyNotFoundException)
             {
                 return null;
             }
@@ -122,8 +134,10 @@ namespace DLTD.Modules
         public static Color HSVtoRGB(float H, float S, float V)
         {
             float R, G, B;
+            H = H / 255;
+            S = S / 255;
+            V = V / 255;
 
-            H = H % 360;
 
             if (V <= 0)
             {
@@ -135,7 +149,7 @@ namespace DLTD.Modules
             }
             else
             {
-                float hf = H / 60.0f;
+                float hf = H * 6.0f;
                 int i = (int)Mathf.Floor(hf);
                 float f = hf - i;
                 float pv = V * (1 - S);
@@ -195,6 +209,7 @@ namespace DLTD.Modules
                         break;
                 }
             }
+
             return new Color(
                 Mathf.Clamp01(R),
                 Mathf.Clamp01(G),
@@ -377,10 +392,11 @@ namespace DLTD.Modules
         [KSPField(isPersistant = true)]
         public bool useBlendForStaticPaintMask = false;
 
-        [KSPField(isPersistant = true)]
+  //      [KSPField(isPersistant = true)]
         public string[] ignoreGameObjects;
 
-        private List<Material> ManagedMaterials;
+        //        private List<Material> ManagedMaterials;
+        private List<ShaderReplacementController> ManagedMaterials;
 
         private enum UISectionID : int { All, Blend, Colour, Selector, Surface, Channel, Clipboard };
         private enum MapChannel : int { C1 = 0xFF0000, C2 = 0xFF00, C3 = 0xFF };
@@ -536,39 +552,43 @@ namespace DLTD.Modules
 
         // consider abstracting this stuff a bit. Preferably consider doing something more sane.
 
-        private static Dictionary<string, MemberInfo> UIMembers; // Cache of field data with [Section] attrib via reflection. Don't use if there's any alternative.
-        //     private static List<List<FieldInfo>> UISection;
+        private static Dictionary<string, MemberInfo> SectionMembers; // Cache of field data with [Section] attrib via reflection. Don't use if there's any alternative.
+        //     private static List<List<FieldInfo>> MembersBySection;
         
         private static bool structureCachePopulated = false;
  
-        private enum UIEntityType { Field, Event, Action };
+        private enum SectionEntityType { Field, Event, Action, Property };
 
-        class UIControlEntity
+        class SectionControlEntity
         {
             public string name;
             public int index;
-            public UIEntityType type;
-            public UIControlEntity( int i, UIEntityType t, string n = "" )
+            public SectionEntityType type;
+            public SectionControlEntity( int i, SectionEntityType t, string n = "" )
             {
                 name = n;
                 index = i;
                 type = t;
             }
 
-            public UIControlEntity( int i, MemberTypes t, string n = "" )
+            public SectionControlEntity( int i, MemberTypes t, string n = "" )
             {
                 name = n;
                 index = i;
-                type = UIEntityType.Field;
+                type = SectionEntityType.Field;
+
                 if (t == MemberTypes.Method)
-                    type = UIEntityType.Event;
+                    type = SectionEntityType.Event;
+
+                if (t == MemberTypes.Property)
+                    type = SectionEntityType.Property;
             }
         }
 
-        class UIControlSection
+        class SectionControlSection
         {
-            private List<UIControlEntity> _entries = new List<UIControlEntity>();
-            public UIControlEntity this[int index]
+            private List<SectionControlEntity> _entries = new List<SectionControlEntity>();
+            public SectionControlEntity this[int index]
             {
                 get
                 {
@@ -589,12 +609,12 @@ namespace DLTD.Modules
                 }
             }
 
-            public void Add( UIControlEntity e )
+            public void Add( SectionControlEntity e )
             {
                 _entries.Add(e);
             }
         }
-        private static List<UIControlSection> UISection;
+        private static List<SectionControlSection> MembersBySection;
 
         private static void PopulateStructureCache( object obj )
         {
@@ -602,32 +622,46 @@ namespace DLTD.Modules
                 return;
             //TDebug.Print("Populating structure cache");
 
-            UIMembers = new Dictionary<string, MemberInfo>();
-            UISection = new List<UIControlSection>();
+            SectionMembers = new Dictionary<string, MemberInfo>();
+            MembersBySection = new List<SectionControlSection>();
 
 
             var _thisType = obj.GetType();
-            var _uiMembers = _thisType.GetMembers(BindingFlags.Instance|BindingFlags.Public);
+            var _classMembers = _thisType.GetMembers(BindingFlags.Instance|BindingFlags.Public);
 
-            for( int i = 0; i < _uiMembers.Length; i++ )
+            for( int i = 0; i < _classMembers.Length; i++ )
             {
                 //TDebug.Print("Structure cache checking field " + _uiMembers[i].Name);
-                if (Attribute.IsDefined(_uiMembers[i], typeof(Section)))
+                if (Attribute.IsDefined(_classMembers[i], typeof(Section)))
                 {
-                    var _SectionAttr = (Section)Attribute.GetCustomAttribute(_uiMembers[i], typeof(Section));
-                    if (_SectionAttr.uiEntry)
+                    var _SectionAttr = (Section)Attribute.GetCustomAttribute(_classMembers[i], typeof(Section));
+
+                    while (MembersBySection.Count <= _SectionAttr.section)
+                        MembersBySection.Add(new SectionControlSection());
+
+
+                    switch(_classMembers[i].MemberType)
                     {
-                        while (UISection.Count <= _SectionAttr.section)
-                            UISection.Add(new UIControlSection());
-                        UIMembers[_uiMembers[i].Name] = _uiMembers[i];
-
-                        TDebug.Print("Structure cache saving field " + _uiMembers[i].Name + " to section " + _SectionAttr.section + " . Type " + _uiMembers[i].MemberType.ToString());
-
-                        // section 0 is all fields with [Section] attributes
-                        var _entry = new UIControlEntity(0, _uiMembers[i].MemberType, _uiMembers[i].Name);
-                        UISection[0].Add(_entry);
-                        UISection[_SectionAttr.section].Add(_entry);
+                        case MemberTypes.Field:
+                            SectionMembers[_classMembers[i].Name] = _thisType.GetField(_classMembers[i].Name);
+                            break;
+                        case MemberTypes.Property:
+                            SectionMembers[_classMembers[i].Name] = _thisType.GetProperty(_classMembers[i].Name);
+                            break;
+                        case MemberTypes.Method:
+                            SectionMembers[_classMembers[i].Name] = _thisType.GetMethod(_classMembers[i].Name);
+                            break;
                     }
+
+  //                  SectionMembers[_classMembers[i].Name] = _classMembers[i];
+
+                    TDebug.Print("Structure cache saving field " + _classMembers[i].Name + " to section " + _SectionAttr.section + " . Type " + _classMembers[i].MemberType.ToString());
+
+                    // section 0 is all fields with [Section] attributes
+                    var _entry = new SectionControlEntity(0, _classMembers[i].MemberType, _classMembers[i].Name);
+                    MembersBySection[0].Add(_entry);
+                    MembersBySection[_SectionAttr.section].Add(_entry);
+
                 }
             }
             structureCachePopulated = true;
@@ -640,67 +674,72 @@ namespace DLTD.Modules
         // All fields
         //public static List<string> GetKSPSectionEntityKeys()
         //{
-        //    return new List<string>(UIMembers.Keys); // maybe just return (List<string>)UIMembers.Keys ?
+        //    return new List<string>(SectionMembers.Keys); // maybe just return (List<string>)SectionMembers.Keys ?
         //}
 
         // only field names from a particular section
         private static List<string> GetKSPSectionEntityKeys( int section = 0 )
         {
-            if (section > UISection.Count || UISection[section] == null)
+            if (section > MembersBySection.Count || MembersBySection[section] == null)
                 return null;
 
             var SectionKeys = new List<string>();
-            for( int i = 0; i < UISection[section].Count; i++ )
+            for( int i = 0; i < MembersBySection[section].Count; i++ )
             {
-                SectionKeys.Add(UISection[section][i].name);
+                SectionKeys.Add(MembersBySection[section][i].name);
             }
             return SectionKeys;
         }
 
-        private static UIControlSection GetKSPEntities( int section = 0 )
+        private static SectionControlSection GetKSPEntities( int section = 0 )
         {
-            if (section > UISection.Count || UISection[section] == null)
+            if (section > MembersBySection.Count || MembersBySection[section] == null)
                 return null;
 
-            return UISection[section];
+            return MembersBySection[section];
         }
 
         //public Dictionary<string,float> GetKSPFields()
         //{
-        //    var UIValues = new Dictionary<string, float>(UIMembers.Count);
-        //    var _UIKeys = new List<string>(UIMembers.Keys);
+        //    var MemberValues = new Dictionary<string, float>(SectionMembers.Count);
+        //    var _UIKeys = new List<string>(SectionMembers.Keys);
         //    for( int i = 0; i < _UIKeys.Count; i++ )
         //    {
-        //        UIValues[_UIKeys[i]] = (float)Fields.GetValue(_UIKeys[i]);
+        //        MemberValues[_UIKeys[i]] = (float)Fields.GetValue(_UIKeys[i]);
         //    }
-        //    return UIValues;
+        //    return MemberValues;
         //}
 
         public Dictionary<string, float> GetKSPFields(int section = 0 )
         {
-            if ((section > UISection.Count )|| (UISection[section] == null))
+            if ((section > MembersBySection.Count )|| (MembersBySection[section] == null))
                     return null;
 
-            var UIValues = new Dictionary<string, float>(UISection[section].Count);
+            var MemberValues = new Dictionary<string, float>(MembersBySection[section].Count);
 
-            for (int i = 0; i < UISection[section].Count; i++)
+            for (int i = 0; i < MembersBySection[section].Count; i++)
             {
-                var _entity = UISection[section][i];
-                if(_entity != null && _entity.type == UIEntityType.Field )
-                    UIValues[_entity.name] = (float)Fields.GetValue(_entity.name);
+                var _entity = MembersBySection[section][i];
+                if (_entity != null)
+                {
+                    if (_entity.type == SectionEntityType.Field)
+                        MemberValues[_entity.name] = (float)Fields.GetValue(_entity.name);
+                    else if (_entity.type == SectionEntityType.Property)
+                        MemberValues[_entity.name] = (float)(SectionMembers[_entity.name] as PropertyInfo).GetValue(this, null);
+                }
             }
-            return UIValues;
+            return MemberValues;
         }
 
         public void SetKSPFields(Dictionary<string, float> fieldData, int section = 0)
         {
-            if ((section > UISection.Count) || (UISection[section] == null))
+            if ((section > MembersBySection.Count) || (MembersBySection[section] == null))
                 return;
 
             var _Section = GetKSPEntities(section);
             for (int i = 0; i < _Section.Count; i++)
             {
-                if( _Section[i].type == UIEntityType.Field && fieldData.ContainsKey(_Section[i].name))
+                if( _Section[i].type == SectionEntityType.Field && fieldData.ContainsKey(_Section[i].name))
                     Fields.SetValue(_Section[i].name, fieldData[_Section[i].name]);
             }
         }
@@ -710,27 +749,27 @@ namespace DLTD.Modules
         // directly referencing
         //public Dictionary<string,float> GetKSPFields()
         //{
-        //    var UIValues = new Dictionary<string,float>( UIMembers.Count );
-        //    var _UIKeys = new List<string>(UIMembers.Keys);
+        //    var MemberValues = new Dictionary<string,float>( SectionMembers.Count );
+        //    var _UIKeys = new List<string>(SectionMembers.Keys);
         //    for( int i = 0; i < _UIKeys.Count; i++ )
         //    {
-        //        UIValues[UIMembers[_UIKeys[i]].Name] = (float)UIMembers[_UIKeys[i]].GetValue(this);
-        //        //TDebug.Print("UI key " + _UIKeys[i] + " value " + UIMembers[_UIKeys[i]].GetValue(this));
+        //        MemberValues[SectionMembers[_UIKeys[i]].Name] = (float)SectionMembers[_UIKeys[i]].GetValue(this);
+        //        //TDebug.Print("UI key " + _UIKeys[i] + " value " + SectionMembers[_UIKeys[i]].GetValue(this));
         //    }
-        //    return UIValues;
+        //    return MemberValues;
         //}
 
         //public Dictionary<string, float> GetKSPFields( int section )
         //{
-        //    if ((section > UISection.Count )|| (UISection[section] == null))
+        //    if ((section > MembersBySection.Count )|| (MembersBySection[section] == null))
         //        return null;
 
-        //    var UIValues = new Dictionary<string, float>(UISection[section].Count);
-        //    for (int i = 0; i < UISection[section].Count; i++)
+        //    var MemberValues = new Dictionary<string, float>(MembersBySection[section].Count);
+        //    for (int i = 0; i < MembersBySection[section].Count; i++)
         //    {
-        //        UIValues[UISection[section][i].Name] = (float)UISection[section][i].GetValue(this);
+        //        MemberValues[MembersBySection[section][i].Name] = (float)MembersBySection[section][i].GetValue(this);
         //    }
-        //    return UIValues;
+        //    return MemberValues;
         //}
 
         //public void SetKSPFields( Dictionary<string,float> fieldData )
@@ -738,19 +777,19 @@ namespace DLTD.Modules
         //    var _UIKeys = new List<string>(fieldData.Keys);
         //    for ( int i = 0; i < fieldData.Count; i++ )
         //    {
-        //        UIMembers[_UIKeys[i]].SetValue(this, fieldData[_UIKeys[i]]);
+        //        SectionMembers[_UIKeys[i]].SetValue(this, fieldData[_UIKeys[i]]);
         //    }
         //}
 
         //public void SetKSPFields( int section, Dictionary<string,float> fieldData )
         //{
-        //    if ((section > UISection.Count) || (UISection[section] == null))
+        //    if ((section > MembersBySection.Count) || (MembersBySection[section] == null))
         //        return;
 
         //    var _SectionKeys = GetKSPSectionEntityKeys(section);
         //    for( int i = 0; i < _SectionKeys.Count; i++ )
         //    {
-        //        UIMembers[_SectionKeys[i]].SetValue(this, fieldData[_SectionKeys[i]]);
+        //        SectionMembers[_SectionKeys[i]].SetValue(this, fieldData[_SectionKeys[i]]);
         //    }
         //}
 
@@ -770,7 +809,7 @@ namespace DLTD.Modules
                 var uiField = Fields[i].uiControlEditor;
                 if (uiField.GetType().FullName == "UI_FloatRange")
                 {
-                    uiField.onFieldChanged = UIEvent_onTweakableChange;
+                    uiField.onFieldChanged += UIEvent_onTweakableChange;
                 }
             }
         }
@@ -806,7 +845,8 @@ namespace DLTD.Modules
                 var replacementShader = SAM.GetReplacementShaderFor(m.shader.name);
                 if (replacementShader != null )
                 {
-                    m.shader = replacementShader.Shader;
+                    //                   m.shader = replacementShader.Shader;
+                    replacementShader.ReplaceShaderIn(m);
                     manageThisMaterial = true;
                 }
                 else if (SAM.IsManagedShader( m.shader.name ))
@@ -815,7 +855,7 @@ namespace DLTD.Modules
                 }
 
                 if(manageThisMaterial)
-                    ManagedMaterials.Add(m);
+                    ManagedMaterials.Add(replacementShader);
 
             }
 
@@ -843,24 +883,25 @@ namespace DLTD.Modules
 
             for (int i = 0; i <  ManagedMaterials.Count; i++ ) 
             {
-                Material m = ManagedMaterials[i];
-                m.SetFloat("_TintPoint", SliderToShaderValue(tintBlendPoint));
-                m.SetFloat("_TintBand", SliderToShaderValue(tintBlendBand));
+                //Material m = ManagedMaterials[i];
+                //m.SetFloat("_TintPoint", SliderToShaderValue(tintBlendPoint));
+                //m.SetFloat("_TintBand", SliderToShaderValue(tintBlendBand));
 
-                float tintFalloff = SliderToShaderValue(tintBlendFalloff);
-                m.SetFloat("_TintFalloff", (tintFalloff > 0 ) ? tintFalloff : 0.001f ); // we divide by this in the shader
-                m.SetFloat("_TintHue", SliderToShaderValue(tintHue));
-                m.SetFloat("_TintSat", SliderToShaderValue(tintSaturation));
-                m.SetFloat("_TintVal", SliderToShaderValue(tintValue));
+                //float tintFalloff = SliderToShaderValue(tintBlendFalloff);
+                //m.SetFloat("_TintFalloff", (tintFalloff > 0 ) ? tintFalloff : 0.001f ); // we divide by this in the shader
+                //m.SetFloat("_TintHue", SliderToShaderValue(tintHue));
+                //m.SetFloat("_TintSat", SliderToShaderValue(tintSaturation));
+                //m.SetFloat("_TintVal", SliderToShaderValue(tintValue));
 
-                float shaderTBTST = SliderToShaderValue(tintBlendSaturationThreshold);
-                m.SetFloat("_TintSatThreshold", shaderTBTST);
+                //float shaderTBTST = SliderToShaderValue(tintBlendSaturationThreshold);
+                //m.SetFloat("_TintSatThreshold", shaderTBTST);
 
-                float shaderSatFalloff = Saturate(shaderTBTST * 0.75f);
-                m.SetFloat("_SaturationFalloff", shaderSatFalloff);
+                //float shaderSatFalloff = Saturate(shaderTBTST * 0.75f);
+                //m.SetFloat("_SaturationFalloff", shaderSatFalloff);
 
-                m.SetFloat("_SaturationWindow", shaderTBTST - shaderSatFalloff); // we divide by this in the shader too, but should only be 0 if the fraction is 0/0
-                m.SetFloat("_GlossMult", tintGloss * 0.01f);
+                //m.SetFloat("_SaturationWindow", shaderTBTST - shaderSatFalloff); // we divide by this in the shader too, but should only be 0 if the fraction is 0/0
+                //m.SetFloat("_GlossMult", tintGloss * 0.01f);
+                ManagedMaterials[i].UpdateShaderWith(Palette);
             }
 
             if(isSymmetryCounterpart)
@@ -888,15 +929,15 @@ namespace DLTD.Modules
         {
             var _section = GetKSPEntities(section);
             _section.Active = flag;
-            TDebug.Print(part.name + " UISectionVisible setting " + flag.ToString() + " for section " + section);
+ //           TDebug.Print(part.name + " UISectionVisible setting " + flag.ToString() + " for section " + section);
             for (int i = 0; i < _section.Count; i++)
             {
                 //             UIControls[keys[i]].obj.guiActiveEditor = flag;
                 //Convert.ChangeType(UIControls[keys[i]].obj, UIControls[keys[i]].type).guiActiveEditor = flag;
-                TDebug.Print(part.name + " Set flag for entity " + _section[i].name);
-                if (_section[i].type == UIEntityType.Field)
+ //               TDebug.Print(part.name + " Set flag for entity " + _section[i].name);
+                if (_section[i].type == SectionEntityType.Field)
                     Fields[_section[i].name].guiActiveEditor = flag;
-                else if (_section[i].type == UIEntityType.Event)
+                else if (_section[i].type == SectionEntityType.Event)
                     Events[_section[i].name].guiActiveEditor = flag;
             }
         }
@@ -909,9 +950,9 @@ namespace DLTD.Modules
             }
             else
             {
-                for (int i = 1; i < UISection.Count; i++)
+                for (int i = 1; i < MembersBySection.Count; i++)
                 {
-                    UISectionVisible(UISection[i].Active, i);
+                    UISectionVisible(MembersBySection[i].Active, i);
                 }
             }
         }
@@ -958,7 +999,7 @@ namespace DLTD.Modules
         // OnAwake() - initialise field refs here
         public override void OnAwake()
         {
-            ManagedMaterials = new List<Material>();
+            ManagedMaterials = new List<ShaderReplacementController>();
 
               // belt & braces
             if (Palette == null)
@@ -966,18 +1007,18 @@ namespace DLTD.Modules
                 Palette = new Palette();
             }
 
-            //TDebug.Print(part.name + " OnAwake: paintableColours " + paintableColours + " prev/next visible " + UISection[(int)UISectionID.Selector].Active);
+            //TDebug.Print(part.name + " OnAwake: paintableColours " + paintableColours + " prev/next visible " + MembersBySection[(int)UISectionID.Selector].Active);
             //// temporary, need to store coloursets in save files
             //UIToColourSet(Palette[activePaletteEntry]);
 
         }
 
-        public void Start(StartState state)
+        public void Start()
         {
         //    base.OnStart(state);
             part.OnEditorAttach += new Callback(OnEditorAttach);
 
-            //TDebug.Print(part.name + " OnStart: paintableColours " + paintableColours + " prev/next visible " + UISection[(int)UISectionID.Selector].Active);
+            //TDebug.Print(part.name + " OnStart: paintableColours " + paintableColours + " prev/next visible " + MembersBySection[(int)UISectionID.Selector].Active);
             UISectionVisible(paintableColours > 1, (int)UISectionID.Selector);
 
             Palette.Limit(paintableColours);            
@@ -1005,7 +1046,8 @@ namespace DLTD.Modules
             Palette.Save(paletteNode);
 
             node.AddNode(paletteNode);
-            base.OnSave(node);
+
+            node.AddValue("ignoreGameObjects", string.Join(",",ignoreGameObjects));
         }
 
         public override void OnLoad(ConfigNode node)
@@ -1016,7 +1058,10 @@ namespace DLTD.Modules
             if (paletteNode != null)
                 Palette.Load(paletteNode);
 
-            ignoreGameObjects = node.GetValues("ignoreGameObject");
+            //            ignoreGameObjects = node.GetValues("ignoreGameObject");
+            var goNode = node.GetValue("ignoreGameObjects");
+            if( goNode != null )
+                ignoreGameObjects = goNode.Split(',');
 
             // temporary, dump a few fields
             //TDebug.Print(part.name + "OnLoad:");

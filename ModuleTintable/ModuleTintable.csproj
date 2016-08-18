@@ -52,7 +52,6 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="AssetLoader.cs" />
     <Compile Include="AssetManagement.cs" />
     <Compile Include="ShaderManagement.cs" />
     <Compile Include="TDebug.cs" />

@@ -11,11 +11,9 @@ namespace DLTD.Utility
 
     public abstract class ShaderAbstract
     {
-        [Persistent]
-        public string[] Replace;
-
-        [Persistent]
         public Dictionary<string, string> ParameterMap;
+
+        public List<string> Keywords;
 
         [Persistent]
         public string disableBlendUIfor;
@@ -34,11 +32,16 @@ namespace DLTD.Utility
         protected ShaderAbstract(Shader newShader)
         {
             Shader = newShader;
+            Keywords = new List<string>();
+            ParameterMap = new Dictionary<string, string>();
         }
+
     }
 
     public class ShaderRecord : ShaderAbstract
     {
+        public string[] Replace;
+
         public ShaderRecord(Shader newShader) : base(newShader)
         {
         }
@@ -47,6 +50,7 @@ namespace DLTD.Utility
         {
             for (int i = 0; i < Replace.Length; i++)
             {
+   //             TDebug.Print( Shader.name+ " isReplacementFor testing " + Replace[i] + " vs " + shaderNameToReplace);
                 if (Replace[i] == shaderNameToReplace)
                     return true;
             }
@@ -69,32 +73,90 @@ namespace DLTD.Utility
             TDebug.Print(s);
 
         }
-    }
 
-    public class TranslatedPaletteEntry : PaletteEntry
-    {
-        public new float this[string key]
+        public void Load(ConfigNode node)
         {
-            get { return Mathf.Clamp01(_Settings[key] / 255); }
+            Replace = node.GetValues("replace");
+
+            var parameterStrings = node.GetValues("parameter");
+            if (parameterStrings.Length > 0)
+            {
+                ParameterMap = new Dictionary<string, string>(parameterStrings.Length);
+                for (int i = 0; i < parameterStrings.Length; i++)
+                {
+                    var parameterSplit = parameterStrings[i].Split(',');
+                    ParameterMap.Add(parameterSplit[0].Trim(), parameterSplit[1].Trim());
+                }
+            }
+
+            var shaderKeywords = node.GetValues("testForKeyword");
+            if (shaderKeywords.Length > 0)
+                Keywords = new List<string>(shaderKeywords);
         }
     }
 
-    // this should be instanciated by ModuleTintable in shader replacement mode to hold records for shader objects attached to gameobjects
-    // Module should keep a toplevel default one & have it linked to individual gameobjects
-    // unless there's an alternative specified
-    // this should probably be called Material & hold a shaderobject instead of being a descendent
 
-    public class ShaderGameObject : ShaderAbstract, IConfigNode
+    // this one deals with managed shaders, IE ones which need the colour editing interface
+    public class ShaderManaged : ShaderAbstract
     {
+        protected Material managedMat;
 
-        [Persistent]
-        public Dictionary<string, string> Maps; // store EXTRA maps here unless you really want to replace a default map
+        public ShaderManaged(Shader newShader) : base(newShader)
+        { }
 
-        private Material managedMat;
+        public ShaderManaged( Material matManaged ) : base( matManaged.shader )
+        {
+            managedMat = matManaged;
+        }
 
-        public ShaderGameObject(Shader newShader) : base(newShader)
+        public void UpdateShaderWith(Palette tintPalette)
+        {
+            // shader fields should be set up in Tint.cginc
+            // parameter map is defined in attributes
+
+            if (managedMat != null && tintPalette != null)
+            {
+                if (ParameterMap == null)
+                {
+                    throw new Exception("ParameterMap is null for shader " + Shader.name);
+                }
+
+                // make sure section 1 entries are only copied to the first palette entry
+                for (int i = 0; i < tintPalette.Length; i++)
+                {
+                    var paletteEntry = tintPalette[i];
+                    foreach (var shaderParams in ParameterMap)
+                    {
+ //                       TDebug.Print("Palette["+i+"] " + shaderParams.Key + "->" + shaderParams.Value + ": "+paletteEntry.GetForShader(shaderParams.Key));
+                        var f = paletteEntry.GetForShader(shaderParams.Key);
+                        if(f != null)
+                            managedMat.SetFloat(shaderParams.Value, (float)f);
+                    }
+ 
+                    managedMat.SetColor("_Color", paletteEntry.Colour);
+                }
+            }
+        }
+    }
+
+    // this one deals with replacing existing material settings, and adding new maps/replacing shaders/enabling shader features
+    public class ShaderReplacementController : ShaderManaged, IConfigNode
+    {
+        private Dictionary<string, string> Maps; // store EXTRA maps here unless you really want to replace a default map
+
+        public ShaderReplacementController(Shader newShader) : base(newShader)
         {
             Maps = new Dictionary<string, string>();
+        }
+
+        public ShaderReplacementController( ShaderAbstract prefab ) : this( prefab.Shader )
+        {
+            if (prefab.ParameterMap != null)
+                ParameterMap = prefab.ParameterMap;
+
+            Shader = prefab.Shader;
+            disableBlendUIfor = prefab.disableBlendUIfor;
+            numColourAreas = prefab.numColourAreas;
         }
 
         private bool shaderKeywordExists(string kw)
@@ -111,78 +173,55 @@ namespace DLTD.Utility
         public void ReplaceShaderIn(Material materialForReplacement)
         {
             managedMat = materialForReplacement;
+            var mapKey = "";
+
+            // need to preload a list of checks to make sure we get the 
+            // right replacement shader keywords even if there's no map replacement/addition
+            var kwToEnable = new List<string>(Keywords.Count);
+
+            for (int i = 0; i < Keywords.Count; i++)
+            {
+                TDebug.Print("Shader " + Shader.name + " Testing for keyword " + Keywords[i]);
+                if (managedMat.HasProperty("_" + Keywords[i]))
+                {
+                    kwToEnable.Add(Keywords[i]);
+                }
+            }
+
+            TDebug.Print("Replacing shader " + managedMat.shader.name + " with " + Shader.name);
 
             managedMat.shader = Shader;
 
-            var mapKey = "";
+            for (int i = 0; i < kwToEnable.Count; i++)
+            {
+                TDebug.Print("Enabling keyword " + kwToEnable[i] + " for existing mat");
+                managedMat.EnableKeyword(kwToEnable[i].ToUpper());
+            }
 
             foreach (var mapEntry in Maps)
             {
-                if (managedMat.HasProperty(mapEntry.Key))
+                if (managedMat.HasProperty("_" + mapEntry.Key))
+                {
+                    TDebug.Print("Setting texture " + mapEntry.Key + " for new shader mat");
                     managedMat.SetTexture("_" + mapEntry.Key, GameDatabase.Instance.GetTexture(mapEntry.Value, false));
+                }
                 else
                     Debug.LogError("Attempted to set map property " + mapEntry.Key + " in shader " + managedMat.shader.name);
 
 
                 // shader keywords are uppercase versions of map parameters
                 // that way if we try and set the map we get the correct shader functionality
+                
                 mapKey = mapEntry.Key.ToUpper();
                 if (shaderKeywordExists(mapKey))
+                {
+                    TDebug.Print("Enabling keyword " + mapKey + " from keyword scan");
                     managedMat.EnableKeyword(mapKey);
+                }
 
             }
-            if (shaderKeywordExists(disableBlendUIfor.ToUpper()))
+            if (disableBlendUIfor != null && shaderKeywordExists(disableBlendUIfor.ToUpper()))
                 useBlend = !managedMat.IsKeywordEnabled(disableBlendUIfor.ToUpper());
-        }
-
-        private static float SliderToShaderValue(float v)
-        {
-            return v / 255;
-        }
-
-        public void UpdateShaderWith( Palette tintPalette )
-        {
-            // shader fields should be set up in Tint.cginc
-            // parameter map is defined in attributes
-
-            if (managedMat != null && tintPalette != null)
-            {
-                if (ParameterMap == null)
-                {
-                    throw new Exception("ParameterMap is null for shader " + Shader.name);
-                }
-
-                //if (useBlend)
-                //{
-                //    var paletteEntry = modTint.Palette[0] as TranslatedPaletteEntry;
-                //    managedMat.SetFloat("_TintPoint", paletteEntry["tintBlendPoint"]);
-                //    managedMat.SetFloat("_TintBand", paletteEntry["tintBlendBand"]);
-
-                //    var tintFalloff = paletteEntry["tintFalloff"];
-                //    managedMat.SetFloat("_TintFalloff", tintFalloff > 0 ? tintFalloff : 0.001f);
-
-                //    var tintSatThreshold = paletteEntry["tintBlendSaturationThreshold"];
-                //    managedMat.SetFloat("_TintSatThreshold", tintSatThreshold);
-
-                //    var saturationFalloff = Mathf.Clamp01(tintSatThreshold * 0.75f);
-                //    managedMat.SetFloat("_SaturationFalloff", saturationFalloff);
-                //    managedMat.SetFloat("_SaturationWindow", tintSatThreshold - saturationFalloff);
-
-                //}
-
-                // make sure section 1 entries are only copied to the first palette entry
-                for (int i = 0; i < tintPalette.Length; i++)
-                {
-                    var paletteEntry = tintPalette[i] as TranslatedPaletteEntry;
-                    foreach (KeyValuePair<string, string> shaderParams in ParameterMap)
-                    {
-                        managedMat.SetFloat(shaderParams.Value, paletteEntry[shaderParams.Key]);
-                    }
-
-                    managedMat.SetColor("_Color", paletteEntry.Colour);
-//                    managedMat.SetFloat("_GlossMult", paletteEntry["tintGloss"]);
-                }
-            }
         }
 
         public void Load(ConfigNode node)
@@ -203,7 +242,8 @@ namespace DLTD.Utility
                 node.AddValue("Map", mapEntry.Key + "," + mapEntry.Value);
             }
         }
-    }
+
+   }
 
 
     [KSPAddon(KSPAddon.Startup.MainMenu, true)]
@@ -213,7 +253,8 @@ namespace DLTD.Utility
         private List<string> ManagedShaders;
         private KSPPaths ModuleTintablePaths;
 
-        private readonly string ShaderBundle = "DLTDTintableShaders";
+        //        private readonly string ShaderBundle = "DLTDTintableShaders";
+        private readonly string ShaderBundle = "dltdtintableshaders"; // unfortunately unity seems to want to save bundles in lowercase
         private readonly string BundleID = "ModuleTintable";
 
         private AssetManager AssetMgr;
@@ -241,17 +282,7 @@ namespace DLTD.Utility
                 {
                     var newShaderRec = new ShaderRecord(assetRec.Asset as Shader);
                     ConfigNode.LoadObjectFromConfig(newShaderRec, assetRec.Attributes);
-                    newShaderRec.Replace = assetRec.Attributes.GetValues("replace");
-
-                    var parameterStrings = assetRec.Attributes.GetValues("parameter");
-                    if (parameterStrings.Length > 0) {
-                        newShaderRec.ParameterMap = new Dictionary<string, string>(parameterStrings.Length);
-                        for (int i = 0; i < parameterStrings.Length; i++)
-                        {
-                            var parameterSplit = parameterStrings[i].Split(',');
-                            newShaderRec.ParameterMap.Add(parameterSplit[0].Trim(), parameterSplit[1].Trim());
-                        }
-                    }
+                    newShaderRec.Load(assetRec.Attributes);
                     Shaders.Add(newShaderRec);
 
                     if (ManagedShaders == null)
@@ -265,11 +296,11 @@ namespace DLTD.Utility
             shadersLoaded = true;
         }
 
-        public ShaderRecord GetReplacementShaderFor(string shaderNameToReplace)
+        public ShaderReplacementController GetReplacementShaderFor(string shaderNameToReplace)
         {
             for (int i = 0; i < Shaders.Count; i++)
                 if (Shaders[i].isReplacementFor(shaderNameToReplace))
-                    return Shaders[i];
+                    return new ShaderReplacementController(Shaders[i]);
 
             return null;
         }

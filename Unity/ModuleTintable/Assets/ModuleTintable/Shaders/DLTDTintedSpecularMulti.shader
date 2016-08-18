@@ -3,11 +3,19 @@ Shader "DLTD/Tinted Specular Multi"
 	Properties 
 	{
 		_MainTex("_MainTex (RGB spec(A)", 2D) = "white" {}
+
+		[Toggle(BLENDMASK)]_EnableBlend("Blendmask?", Int ) = 0
 		_BlendMask("_BlendMask (Greyscale)", 2D) = "white" {}
-		_BumpMap("_BumpMap", 2D) = "bump" {}
-		_Colour ("Main Colour", Color) = (1,1,1,1)
+
+		[Toggle(BUMPMAP)] _EnableBump("Bump?", Int ) = 0
+		[Normal]_BumpMap("_BumpMap", 2D) = "bump" {}
+
+		_Color ("Main Colour", Color) = (1,1,1,1)
 		_SpecColour ("Specular Colour", Color) = (0.5, 0.5, 0.5, 1)
 		_Shininess ("Shininess", Range (0.03, 1)) = 0.078125
+
+
+			[Toggle(EMISSIVE)] _EnableEmissive("Emissive?", Int ) = 0
 		_EmissiveColor("_EmissiveColor", Color) = (0,0,0,1)
 		_Emissive("_Emissive", 2D) = "white" {}
 
@@ -16,8 +24,8 @@ Shader "DLTD/Tinted Specular Multi"
 		_RimFalloff("_RimFalloff", Range(0.01,5) ) = 0.1
 		_RimColour("_RimColour", Color) = (0,0,0,0)
 
-			[HideInInspector]_TemperatureColour("_TemperatureColour", Color) = (0,0,0,0)
-			[HideInInspector]_BurnColour ("_Burn Colour", Color) = (1,1,1,1)
+			[HideInInspector]_TemperatureColor("_TemperatureColour", Color) = (0,0,0,0)
+			[HideInInspector]_BurnColor ("_Burn Colour", Color) = (1,1,1,1)
 
 	}
 	
@@ -39,7 +47,7 @@ Shader "DLTD/Tinted Specular Multi"
 		half _Shininess;
 
 		sampler2D _MainTex;
-		float4 _Colour;
+		float4 _Color;
 
 #if defined (BLENDMASK)
 		sampler2D _BlendMask;
@@ -55,8 +63,8 @@ Shader "DLTD/Tinted Specular Multi"
 		float _Opacity;
 		float _RimFalloff;
 		float4 _RimColour;
-		float4 _TemperatureColour;
-		float4 _BurnColour;
+		float4 _TemperatureColor;
+		float4 _BurnColor;
 
 #include "Tint.cginc"
 		
@@ -85,7 +93,7 @@ Shader "DLTD/Tinted Specular Multi"
 			half rim = 1.0 - saturate(dot (normalize(IN.viewDir), normal));
 
 			float3 emission = (_RimColour.rgb * pow(rim, _RimFalloff)) * _RimColour.a;
-			emission += _TemperatureColour.rgb * _TemperatureColour.a;
+			emission += _TemperatureColor.rgb * _TemperatureColor.a;
 #if defined (EMISSIVE)
 			emission += (tex2D(_Emissive, IN.uv_Emissive).rgb * _EmissiveColor.rgb) * _EmissiveColor.a;
 #endif
@@ -97,7 +105,7 @@ Shader "DLTD/Tinted Specular Multi"
 #endif
 
 			// code must write _Colour in RGB now
-			o.Albedo = lerp(color.rgb, color.rgb * _Colour, blend) *_BurnColour;
+			o.Albedo = lerp(color.rgb, color.rgb * _Color, blend) *_BurnColor;
 			o.Emission = emission;
 			o.Gloss = color.a *_GlossMult;
 			o.Specular = _Shininess;

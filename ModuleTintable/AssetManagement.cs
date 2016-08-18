@@ -162,9 +162,10 @@ namespace DLTD.Utility
                 foreach (ConfigNode node in bundleRec.Attributes.GetNodes(attributeTag))
                 {
                     var name = node.GetValue("name");
-                    //TDebug.Print("Attribute loader looking for " + name);
+                    TDebug.Print("Attribute loader looking for [" + name + "]");
                     if (Assets.ContainsKey(name))
                     {
+                        TDebug.Print("Attribute loader found " + name);
                         Assets[name].Attributes = node;
                     }
                 }

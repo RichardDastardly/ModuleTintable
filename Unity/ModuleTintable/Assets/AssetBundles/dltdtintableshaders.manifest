@@ -1,9 +1,9 @@
 ManifestFileVersion: 0
-CRC: 2135111940
+CRC: 1677541079
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: 662a653d71d3d0de103456895def0bb4
+    Hash: d9f502fe78f858a6f820ca01249b8fbb
   TypeTreeHash:
     serializedVersion: 2
     Hash: c1089fea0bc7521f04d7ee9836950478
@@ -16,5 +16,7 @@ Assets:
 - Assets/ModuleTintable/Shaders/SpecularPaintMask.shader
 - Assets/ModuleTintable/Shaders/TintedSpecular.shader
 - Assets/ModuleTintable/Shaders/TintedSpecularMask.shader
+- Assets/ModuleTintable/Shaders/DLTDTintedSpecularMulti.shader
 - Assets/ModuleTintable/Shaders/TintedEmissiveSpecular.shader
-Dependencies: []
+Dependencies:
+- Assets/AssetBundles/squadcore

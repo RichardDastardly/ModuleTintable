@@ -39,6 +39,7 @@ Shader "KSP/Tinted Specular"
 		float4 _RimColor;
 		float4 _TemperatureColor;
 		float4 _BurnColor;
+		float4 _Color;
 
 #include "Tint.cginc"
 		
@@ -58,7 +59,8 @@ Shader "KSP/Tinted Specular"
 			float3 emission = (_RimColor.rgb * pow(rim, _RimFalloff)) * _RimColor.a;
 			emission += _TemperatureColor.rgb * _TemperatureColor.a;
 
-			color.rgb = lerp(color.rgb, color.rgb * HSVtoRGB(float3(_TintHue, _TintSat, _TintVal)), BlendFactor( color )) *_BurnColor;
+			//color.rgb = lerp(color.rgb, color.rgb * HSVtoRGB(float3(_TintHue, _TintSat, _TintVal)), BlendFactor( color )) *_BurnColor;
+			color.rgb = lerp(color.rgb, color.rgb * _Color, BlendFactor(color)) *_BurnColor;
 
 			o.Albedo = color.rgb;
 			o.Emission = emission;

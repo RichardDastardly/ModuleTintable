@@ -90,7 +90,8 @@ namespace DLTD.Utility
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     class AssetManager : MonoBehaviour
     {
-        
+
+        TDebug dbg;
         // do some error checking please...
 
         public Dictionary<string, AssetRecord> Assets;
@@ -117,7 +118,7 @@ namespace DLTD.Utility
                     yield break;
                 }
 
-                //           TDebug.Print("LoadAssetBundle: bundle " + b.BundleID + " loaded from disk, preparing to load assets.");
+                //           dbg.Print("LoadAssetBundle: bundle " + b.BundleID + " loaded from disk, preparing to load assets.");
 
                 var bundle = www.assetBundle;
                 bundleRec.state = BundleState.AssetLoading;
@@ -125,7 +126,7 @@ namespace DLTD.Utility
 
                 yield return assetsLoadRequest;
 
-                //           TDebug.Print("LoadAssetBundle: bundle " + b.BundleID + " assets loaded.");
+                //           dbg.Print("LoadAssetBundle: bundle " + b.BundleID + " assets loaded.");
 
                 bundleRec.Assets = assetsLoadRequest.allAssets;
 
@@ -135,7 +136,7 @@ namespace DLTD.Utility
                 {
                     var assetName = bundleRec.Assets[i].name;
                     var assetRec = new AssetRecord(bundleRec.Assets[i], bundleRec.BundleID);
-                    //                TDebug.Print("LoadAssetBundle: " + n);
+                    //                dbg.Print("LoadAssetBundle: " + n);
                     Assets[assetName] = assetRec;
                 }
 
@@ -152,20 +153,20 @@ namespace DLTD.Utility
                 yield return null;
 
             var cfgFile = bundleRec.BundleLoc + ".atr";
-            //TDebug.Print("Loading attributes for bundle " + b.BundleID + " from " + cfgFile);
+            //dbg.Print("Loading attributes for bundle " + b.BundleID + " from " + cfgFile);
 
             if (File.Exists(cfgFile))
             {
-                //TDebug.Print(cfgFile + " exists, loading...");
+                //dbg.Print(cfgFile + " exists, loading...");
                 bundleRec.Attributes = ConfigNode.Load(cfgFile);
 
                 foreach (ConfigNode node in bundleRec.Attributes.GetNodes(attributeTag))
                 {
                     var name = node.GetValue("name");
-                    TDebug.Print("Attribute loader looking for [" + name + "]");
+                    dbg.Print("Attribute loader looking for [" + name + "]");
                     if (Assets.ContainsKey(name))
                     {
-                        TDebug.Print("Attribute loader found " + name);
+                        dbg.Print("Attribute loader found " + name);
                         Assets[name].Attributes = node;
                     }
                 }
@@ -174,7 +175,7 @@ namespace DLTD.Utility
 
         public BundleRecord LoadModBundle( KSPPaths modPaths, string bundleFN, string bundleID )
         {
-   //         TDebug.Print("LoadModBundle: " + p.Mod + " " + bundleFN + " " + bundleID);
+   //         dbg.Print("LoadModBundle: " + p.Mod + " " + bundleFN + " " + bundleID);
             var bundleRec = new BundleRecord(modPaths.Packages + "/" + bundleFN, bundleID);
             StartCoroutine(LoadAssetBundle(bundleRec));
             StartCoroutine(LoadAssetAttributes(bundleRec));
@@ -197,11 +198,11 @@ namespace DLTD.Utility
 
         public Dictionary<string,AssetRecord> GetAssetsOfType<T>( string b_ID = null ) where T : UnityEngine.Object
         {
-  //          TDebug.Print("GetAssetsOfType: getting entries of type " + typeof(T).ToString());
+  //          dbg.Print("GetAssetsOfType: getting entries of type " + typeof(T).ToString());
             var assetRecords = new Dictionary<string,AssetRecord>();
             foreach (var k in Assets.Keys)
             {
- //               TDebug.Print("GetAssetsOfType: asset " + Assets[k].Asset.name + " type " +Assets[k].Asset.GetType().ToString());
+ //               dbg.Print("GetAssetsOfType: asset " + Assets[k].Asset.name + " type " +Assets[k].Asset.GetType().ToString());
                 if ((Assets[k].Asset.GetType() == typeof(T) ) && (b_ID != null && b_ID == Assets[k].BundleID))
                     assetRecords[k] = Assets[k];
             }
@@ -214,6 +215,7 @@ namespace DLTD.Utility
             Assets = new Dictionary<string, AssetRecord>();
             AssetsByBundleID = new Dictionary<string, BundleRecord>();
 
+            dbg = new TDebug("[DLTD AssetManager] ");
 
             DontDestroyOnLoad(this);
         }

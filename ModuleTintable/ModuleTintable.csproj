@@ -53,6 +53,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AssetManagement.cs" />
+    <Compile Include="System.cs" />
     <Compile Include="ShaderManagement.cs" />
     <Compile Include="TDebug.cs" />
     <Compile Include="ModuleTintable.cs" />

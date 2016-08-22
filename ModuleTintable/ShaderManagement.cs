@@ -3,16 +3,23 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using DLTD.Modules;
+using DLTD.System;
 
 namespace DLTD.Utility
 {
     #region Asset Management
     public enum ShaderOverlayMask { None, Explicit, UseDefaultTexture };
 
+    [Serializable]
     public abstract class ShaderAbstract
     {
-        public Dictionary<string, string> ParameterMap;
+        [NonSerialized]
+        protected TDebug dbg;
 
+        [Persistent]
+        public StringDict ParameterMap;
+
+        [Persistent]
         public List<string> Keywords;
 
         [Persistent]
@@ -27,13 +34,16 @@ namespace DLTD.Utility
         [Persistent]
         public int numColourAreas = 1;
 
+        [Persistent]
         public Shader Shader;
 
         protected ShaderAbstract(Shader newShader)
         {
             Shader = newShader;
             Keywords = new List<string>();
-            ParameterMap = new Dictionary<string, string>();
+            ParameterMap = new StringDict();
+
+            dbg = new TDebug("[Shader] ");
         }
 
     }
@@ -50,7 +60,7 @@ namespace DLTD.Utility
         {
             for (int i = 0; i < Replace.Length; i++)
             {
-   //             TDebug.Print( Shader.name+ " isReplacementFor testing " + Replace[i] + " vs " + shaderNameToReplace);
+   //             dbg.Print( Shader.name+ " isReplacementFor testing " + Replace[i] + " vs " + shaderNameToReplace);
                 if (Replace[i] == shaderNameToReplace)
                     return true;
             }
@@ -61,7 +71,7 @@ namespace DLTD.Utility
         {
             if (Replace == null)
             {
-                TDebug.Print("No replacements found :(");
+                dbg.Print("No replacements found :(");
                 Replace = new string[0];
             }
             var s = "Record " + Shader.name + ": Replaces: ";
@@ -70,7 +80,7 @@ namespace DLTD.Utility
 
             s += " useBlend: " + useBlend.ToString();
             s += " shadingOverlayType: " + shadingOverlayType.ToString();
-            TDebug.Print(s);
+            dbg.Print(s);
 
         }
 
@@ -81,7 +91,7 @@ namespace DLTD.Utility
             var parameterStrings = node.GetValues("parameter");
             if (parameterStrings.Length > 0)
             {
-                ParameterMap = new Dictionary<string, string>(parameterStrings.Length);
+                ParameterMap = new StringDict();
                 for (int i = 0; i < parameterStrings.Length; i++)
                 {
                     var parameterSplit = parameterStrings[i].Split(',');
@@ -92,7 +102,7 @@ namespace DLTD.Utility
             var shaderKeywords = node.GetValues("testForKeyword");
             if (shaderKeywords.Length > 0)
             {
- //               TDebug.Print("Shader " + Shader.name + " has " + shaderKeywords.Length + " defined keyword tests.");
+ //               dbg.Print("Shader " + Shader.name + " has " + shaderKeywords.Length + " defined keyword tests.");
                 Keywords = new List<string>(shaderKeywords);
             }
         }
@@ -100,6 +110,7 @@ namespace DLTD.Utility
 
 
     // this one deals with managed shaders, IE ones which need the colour editing interface
+    [Serializable]
     public class ShaderManaged : ShaderAbstract
     {
         protected Material managedMat;
@@ -130,7 +141,7 @@ namespace DLTD.Utility
                     var paletteEntry = tintPalette[i];
                     foreach (var shaderParams in ParameterMap)
                     {                                                                                                                                                                                                                                                                                                                                 
- //                       TDebug.Print("Palette["+i+"] " + shaderParams.Key + "->" + shaderParams.Value + ": "+paletteEntry.GetForShader(shaderParams.Key));
+ //                       dbg.Print("Palette["+i+"] " + shaderParams.Key + "->" + shaderParams.Value + ": "+paletteEntry.GetForShader(shaderParams.Key));
                         var f = paletteEntry.GetForShader(shaderParams.Key);
                         if(f != null)
                             managedMat.SetFloat(shaderParams.Value, (float)f);
@@ -146,13 +157,20 @@ namespace DLTD.Utility
     }
 
     // this one deals with replacing existing material settings, and adding new maps/replacing shaders/enabling shader features
+    [Serializable]
     public class ShaderReplacementController : ShaderManaged, IConfigNode
     {
-        private Dictionary<string, string> Maps; // store EXTRA maps here unless you really want to replace a default map
+        [SerializeField]
+        private StringDict Maps; // store EXTRA maps here unless you really want to replace a default map
 
         public ShaderReplacementController(Shader newShader) : base(newShader)
         {
-            Maps = new Dictionary<string, string>();
+            Maps = new StringDict();
+        }
+
+        public ShaderReplacementController(Material matToManage ) : base( matToManage )
+        {
+            Maps = new StringDict();
         }
 
         // well this is ugly, I'm really sure there's a better way
@@ -179,41 +197,16 @@ namespace DLTD.Utility
             return false;
         }
 
-        public void ReplaceShaderIn(Material materialForReplacement)
-        {
-            managedMat = materialForReplacement;
-            var mapKey = "";
-
-            // need to preload a list of checks to make sure we get the 
-            // right replacement shader keywords even if there's no map replacement/addition
-            var kwToEnable = new List<string>(Keywords.Count);
-
-            for (int i = 0; i < Keywords.Count; i++)
-            {
- //               TDebug.Print("Shader " + Shader.name + " Testing for keyword " + Keywords[i]);
-                if (managedMat.HasProperty("_" + Keywords[i]))
-                {
-                    kwToEnable.Add(Keywords[i]);
-                }
-            }
-
-            TDebug.Print("Replacing shader " + managedMat.shader.name + " with " + Shader.name);
-
-            managedMat.shader = Shader;
-
-            for (int i = 0; i < kwToEnable.Count; i++)
-            {
- //               TDebug.Print("Enabling keyword " + kwToEnable[i] + " for existing mat");
-                managedMat.EnableKeyword(kwToEnable[i].ToUpper());
-            }
-
+        public void doShaderSetup()
+        { 
             managedMat.SetFloat("usableColours", numColourAreas);
-
+            var mapKey = "";
+            
             foreach (var mapEntry in Maps)
             {
                 if (managedMat.HasProperty("_" + mapEntry.Key))
                 {
-                    TDebug.Print("Setting texture " + mapEntry.Key + " for new shader mat");
+                    dbg.Print("Setting texture " + mapEntry.Key + " for new shader mat");
                     var mat = GameDatabase.Instance.GetTexture(mapEntry.Value, false);
                     if (mat != null)
                         managedMat.SetTexture("_" + mapEntry.Key, mat);
@@ -231,16 +224,46 @@ namespace DLTD.Utility
  //               if (shaderKeywordExists(mapKey))
  // I think shader.Keywords is set by EnableKeywords...
                 {
-                    TDebug.Print("Attempting to enable keyword " + mapKey + " from keyword scan");
+                    dbg.Print("Attempting to enable keyword " + mapKey + " from keyword scan");
                     managedMat.EnableKeyword(mapKey);
                 }
 
             }
             if (disableBlendUIfor != null && shaderKeywordExists(disableBlendUIfor.ToUpper()))
             {
-                TDebug.Print("useBlend set to " + !managedMat.IsKeywordEnabled(disableBlendUIfor.ToUpper()));
+                dbg.Print("useBlend set to " + !managedMat.IsKeywordEnabled(disableBlendUIfor.ToUpper()));
                 useBlend = !managedMat.IsKeywordEnabled(disableBlendUIfor.ToUpper());
             }
+        }
+
+        public void ReplaceShaderIn(Material materialForReplacement)
+        {
+            managedMat = materialForReplacement;
+
+            // need to preload a list of checks to make sure we get the 
+            // right replacement shader keywords even if there's no map replacement/addition
+            var kwToEnable = new List<string>(Keywords.Count);
+
+            for (int i = 0; i < Keywords.Count; i++)
+            {
+                //               dbg.Print("Shader " + Shader.name + " Testing for keyword " + Keywords[i]);
+                if (managedMat.HasProperty("_" + Keywords[i]))
+                {
+                    kwToEnable.Add(Keywords[i]);
+                }
+            }
+
+            dbg.Print("Replacing shader " + managedMat.shader.name + " with " + Shader.name);
+
+            managedMat.shader = Shader;
+
+            for (int i = 0; i < kwToEnable.Count; i++)
+            {
+                //               dbg.Print("Enabling keyword " + kwToEnable[i] + " for existing mat");
+                managedMat.EnableKeyword(kwToEnable[i].ToUpper());
+            }
+
+            doShaderSetup();
         }
 
         private void splitMaps(string[] mapEntries)
@@ -308,7 +331,7 @@ namespace DLTD.Utility
 
             foreach (AssetRecord assetRec in bundleContents.Values)
             {
-                //TDebug.Print("ShaderAssetManager got handed " + assetRec.Asset.name + " from " + assetRec.BundleID);
+                //dbg.Print("ShaderAssetManager got handed " + assetRec.Asset.name + " from " + assetRec.BundleID);
                 if (assetRec.Attributes != null)
                 {
                     var newShaderRec = new ShaderRecord(assetRec.Asset as Shader);
@@ -320,7 +343,7 @@ namespace DLTD.Utility
                         ManagedShaders = new List<string>();
                     ManagedShaders.Add(newShaderRec.Shader.name);
 
-                    //TDebug.Print("ShaderAssetManager added " + newShaderRec.Shader.name);
+                    //dbg.Print("ShaderAssetManager added " + newShaderRec.Shader.name);
                     newShaderRec._dumpToLog();
                 }
             }
@@ -333,6 +356,14 @@ namespace DLTD.Utility
                 if (Shaders[i].Shader.name == shaderName)
                     return new ShaderReplacementController(Shaders[i]);
 
+            return null;
+        }
+
+        public ShaderReplacementController GetShader( Material matToManage )
+        {
+            for (int i = 0; i < Shaders.Count; i++)
+                if (Shaders[i].Shader.name == matToManage.shader.name)
+                    return new ShaderReplacementController(matToManage);
             return null;
         }
 

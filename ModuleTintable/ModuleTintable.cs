@@ -514,6 +514,7 @@ namespace DLTD.Modules
         #endregion
         #endregion
 
+        private TDebug dbg;
 
         #region Reflection / field cache / GetSet methods
 
@@ -587,7 +588,7 @@ namespace DLTD.Modules
         {
             if (structureCachePopulated)
                 return;
-            //TDebug.Print("Populating structure cache");
+            //dbg.Print("Populating structure cache");
 
             SectionMembers = new Dictionary<string, MemberInfo>();
             MembersBySection = new List<SectionControlSection>();
@@ -598,7 +599,7 @@ namespace DLTD.Modules
 
             for( int i = 0; i < _classMembers.Length; i++ )
             {
-                //TDebug.Print("Structure cache checking field " + _uiMembers[i].Name);
+                //dbg.Print("Structure cache checking field " + _uiMembers[i].Name);
                 if (Attribute.IsDefined(_classMembers[i], typeof(Section)))
                 {
                     var _SectionAttr = (Section)Attribute.GetCustomAttribute(_classMembers[i], typeof(Section));
@@ -622,7 +623,7 @@ namespace DLTD.Modules
 
   //                  SectionMembers[_classMembers[i].Name] = _classMembers[i];
 
-                    TDebug.Print("Structure cache saving field " + _classMembers[i].Name + " to section " + _SectionAttr.section + " . Type " + _classMembers[i].MemberType.ToString());
+                    (obj as ModuleTintable).dbg.Print("Structure cache saving field " + _classMembers[i].Name + " to section " + _SectionAttr.section + " . Type " + _classMembers[i].MemberType.ToString());
 
                     // section 0 is all fields with [Section] attributes
                     var _entry = new SectionControlEntity(0, _classMembers[i].MemberType, _classMembers[i].Name);
@@ -633,7 +634,6 @@ namespace DLTD.Modules
             }
             structureCachePopulated = true;
 
-            TDebug.DbgTag = "[ModuleTintable] ";
         }
 
 
@@ -721,7 +721,7 @@ namespace DLTD.Modules
         //    for( int i = 0; i < _UIKeys.Count; i++ )
         //    {
         //        MemberValues[SectionMembers[_UIKeys[i]].Name] = (float)SectionMembers[_UIKeys[i]].GetValue(this);
-        //        //TDebug.Print("UI key " + _UIKeys[i] + " value " + SectionMembers[_UIKeys[i]].GetValue(this));
+        //        //dbg.Print("UI key " + _UIKeys[i] + " value " + SectionMembers[_UIKeys[i]].GetValue(this));
         //    }
         //    return MemberValues;
         //}
@@ -790,7 +790,7 @@ namespace DLTD.Modules
 
             if (!needShaderReplacement)
             {
-                TDebug.Print("Apparently " + part.name + " doesn't need shader replacement");
+                dbg.Print("Apparently " + part.name + " doesn't need shader replacement");
                 return;
             }
 
@@ -804,47 +804,69 @@ namespace DLTD.Modules
                 Materials.AddRange(r[i].materials);
             }
 
-            for( int i = 0; i < Materials.Count; i++ )
+            if (ManagedMaterials.Count == 0)
             {
-                bool manageThisMaterial = false;
-                Material m = Materials[i];
-
-                ShaderReplacementController replacementShader = null;
-
-                if (requestShader != null)
-                    replacementShader = SAM.GetShader(requestShader);
-
-                if (replacementShader == null )
-                    replacementShader = SAM.GetReplacementShaderFor(m.shader.name);
-
-                if (replacementShader != null )
+                for (int i = 0; i < Materials.Count; i++)
                 {
-                    if( rawMaps != null )
-                        replacementShader.Load(rawMaps);
-                    replacementShader.ReplaceShaderIn(m);
-                    manageThisMaterial = true;
+                    bool manageThisMaterial = false;
+                    Material m = Materials[i];
+
+                    ShaderReplacementController replacementShader = null;
+
+                    if (requestShader != null)
+                        replacementShader = SAM.GetShader(requestShader);
+
+                    if (replacementShader == null)
+                        replacementShader = SAM.GetReplacementShaderFor(m.shader.name);
+
+                    if (replacementShader != null)
+                    {
+                        if (rawMaps != null)
+                            replacementShader.Load(rawMaps);
+                        replacementShader.ReplaceShaderIn(m);
+                        manageThisMaterial = true;
+                    }
+                    else if (SAM.IsManagedShader(m.shader.name))
+                    {
+                        dbg.Print("This is a managed shader");
+                        manageThisMaterial = true;
+                        replacementShader = SAM.GetShader(m);
+                        replacementShader.doShaderSetup();
+                    }
+
+                    if (manageThisMaterial)
+                    {
+                        ManagedMaterials.Add(replacementShader);
+                    }
                 }
-                else if (SAM.IsManagedShader( m.shader.name ))
+            }
+            else
+            {
+                for (int i = 0; i < ManagedMaterials.Count; i++)
                 {
-                    TDebug.Print("This is a managed shader");
-                    manageThisMaterial = true;
+                    ManagedMaterials[i].doShaderSetup();
                 }
 
-                if (manageThisMaterial && replacementShader != null )
-                {
-                    ManagedMaterials.Add(replacementShader);
-                    if (i == 0)
-                        UISectionVisible(replacementShader.useBlend, (int)UISectionID.Blend);
-                }
             }
 
             if( ManagedMaterials.Count > 0)
             {
                 moduleActive = true;
                 needUpdate = true;
+
             }
 
-            needShaderReplacement = false;
+            UISectionVisible(false, (int)UISectionID.Blend);
+
+            for (int i = 0; i < ManagedMaterials.Count; i++)
+            {
+                dbg.Print(part.name + " shader " + ManagedMaterials[i].Shader.name + " useBlend " + ManagedMaterials[i].useBlend.ToString());
+                if (ManagedMaterials[i].useBlend)
+                    UISectionVisible(true, (int)UISectionID.Blend);
+            }
+
+
+                needShaderReplacement = false;
         }
 
         private void UpdateShaderValues()
@@ -880,12 +902,12 @@ namespace DLTD.Modules
         {
             var _section = GetKSPEntities(section);
             _section.Active = flag;
- //           TDebug.Print(part.name + " UISectionVisible setting " + flag.ToString() + " for section " + section);
+ //           dbg.Print(part.name + " UISectionVisible setting " + flag.ToString() + " for section " + section);
             for (int i = 0; i < _section.Count; i++)
             {
                 //             UIControls[keys[i]].obj.guiActiveEditor = flag;
                 //Convert.ChangeType(UIControls[keys[i]].obj, UIControls[keys[i]].type).guiActiveEditor = flag;
- //               TDebug.Print(part.name + " Set flag for entity " + _section[i].name);
+ //               dbg.Print(part.name + " Set flag for entity " + _section[i].name);
                 if (_section[i].type == SectionEntityType.Field)
                     Fields[_section[i].name].guiActiveEditor = flag;
                 else if (_section[i].type == SectionEntityType.Event)
@@ -916,6 +938,7 @@ namespace DLTD.Modules
         {
             //           SetKSPFields(t.GetKSPFields());
             Palette = t.Palette;
+            ColourSetToUI(Palette.Active());
             needUpdate = true;
             moduleActive = true;
             isSymmetryCounterpart = true;
@@ -927,12 +950,19 @@ namespace DLTD.Modules
         // why is the constructor being called twice
         public ModuleTintable()
         {
+            dbg = new TDebug("[ModuleTintable] ");
             moduleActive = false;
             needShaderReplacement = true;
-            //            TDebug.Print("ModuleTintable constructor called");
+            //            dbg.Print("ModuleTintable constructor called");
             if (!structureCachePopulated)
                 PopulateStructureCache(this);
+        }
 
+        public override void OnInitialize()
+        {
+            base.OnInitialize();
+   //         dbg.Print("OnInitialize(): symmetry member "+ part.isSymmetryCounterPart(part).ToString());
+            UIVisible(moduleActive);
         }
 
         // OnAwake() - initialise field refs here
@@ -946,7 +976,8 @@ namespace DLTD.Modules
                 Palette = new Palette();
             }
 
-            //TDebug.Print(part.name + " OnAwake: paintableColours " + paintableColours + " prev/next visible " + MembersBySection[(int)UISectionID.Selector].Active);
+            base.OnAwake();
+            //dbg.Print(part.name + " OnAwake: paintableColours " + paintableColours + " prev/next visible " + MembersBySection[(int)UISectionID.Selector].Active);
             //// temporary, need to store coloursets in save files
             //UIToColourSet(Palette[activePaletteEntry]);
 
@@ -957,7 +988,7 @@ namespace DLTD.Modules
         //    base.OnStart(state);
             part.OnEditorAttach += new Callback(OnEditorAttach);
 
-            //TDebug.Print(part.name + " OnStart: paintableColours " + paintableColours + " prev/next visible " + MembersBySection[(int)UISectionID.Selector].Active);
+            //dbg.Print(part.name + " OnStart: paintableColours " + paintableColours + " prev/next visible " + MembersBySection[(int)UISectionID.Selector].Active);
             UISectionVisible(paintableColours > 1, (int)UISectionID.Selector);
 
             Palette.Limit(paintableColours);            
@@ -981,6 +1012,8 @@ namespace DLTD.Modules
 
         public override void OnSave(ConfigNode node)
         {
+            base.OnSave(node);
+
             var paletteNode = new ConfigNode(PaletteTag);
             Palette.Save(paletteNode);
 
@@ -1005,10 +1038,10 @@ namespace DLTD.Modules
             rawMaps = node.GetValues("Map");
 
             // temporary, dump a few fields
-            //TDebug.Print(part.name + "OnLoad:");
- //           TDebug.Print("Paintmask: " + paintMask);
-            //TDebug.Print(part.name + "PaintableColours: " + paintableColours);
- //           TDebug.Print("useBlendForStaticPaintMask: " + useBlendForStaticPaintMask.ToString());
+            //dbg.Print(part.name + "OnLoad:");
+ //           dbg.Print("Paintmask: " + paintMask);
+            //dbg.Print(part.name + "PaintableColours: " + paintableColours);
+ //           dbg.Print("useBlendForStaticPaintMask: " + useBlendForStaticPaintMask.ToString());
 
             UISectionVisible(paintableColours > 1, (int)UISectionID.Selector);
         }
@@ -1025,7 +1058,7 @@ namespace DLTD.Modules
 
         public void Setup()
         {
- //           TDebug.Print("Setup() [" + this.part.name + "]");
+ //           dbg.Print("Setup() [" + this.part.name + "]");
         }
      }
     #endregion

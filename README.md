@@ -1,4 +1,4 @@
-# Tinter
+# ModuleTintable
 Small partmodule to override default shaders &amp; let you tint stock parts.
 [![Demo vid](https://img.youtube.com/vi/WQAD2m_4rOA/0.jpg)](https://www.youtube.com/watch?v=WQAD2m_4rOA)
 
@@ -13,8 +13,8 @@ So, it's probably going to be awful.
 
 Current issues:
 
-- Probably a heap of stuff I haven't found.
-- Shader needs some work.
+- No idea if multiple colour entries work
+- Too many bodges right now, refactoring will come after I manage to work out what's going on yet again.
 
 License: All Rights Reserved. Including the right to change the license at any time.
 

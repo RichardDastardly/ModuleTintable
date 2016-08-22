@@ -160,6 +160,7 @@ namespace DLTD.Utility
     [Serializable]
     public class ShaderReplacementController : ShaderManaged, IConfigNode
     {
+        [Persistent]
         [SerializeField]
         private StringDict Maps; // store EXTRA maps here unless you really want to replace a default map
 

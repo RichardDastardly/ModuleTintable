@@ -49,11 +49,11 @@ namespace DLTD.Utility
     {
         public string mdbtag
         { 
-            get { return "[ModuleTrace] " + part.name + " Instance: " + instanceID + " "; }
+            get { return "[ModuleTrace] " + part.name + "_" + instanceID + " "; }
         }
         public uint instanceID
         {
-            get { return (part.craftID == 0) ? part.flightID : part.craftID; }
+            get { return (part.flightID == 0) ? part.craftID : part.flightID; }
         }
 
         public bool updateRun = false;

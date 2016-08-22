@@ -353,13 +353,13 @@ namespace DLTD.Modules
          * Constructor -> OnAwake
          * 
          * Editor new instance:
-         * Constructor -> OnAwake -> OnStart -> OnSave
+         * Constructor -> OnAwake -> OnInitialize() -> OnStart -> OnSave
          * 
          * Vessel load:
-         * Constructor -> OnAwake -> OnLoad -> OnSave -> OnStart
+         * Constructor -> OnAwake -> OnLoad ->  OnInitialize() -> OnSave -> OnStart
          * 
          * Craft Launch
-         * Constructor -> OnAwake -> OnLoad ( from craft file ) -> OnSave -> OnStart -> OnActive -> On[Fixed]Update
+         * Constructor -> OnAwake -> OnLoad ( from craft file ) ->  OnInitialize() -> OnSave -> OnStart ->  OnInitialize() -> OnActive -> On[Fixed]Update
          * 
          * Craft switch via tracking:
          * Constructor -> OnAwake -> OnLoad ( from persistence ) -> OnStart -> OnActive -> On[Fixed]Update
@@ -801,7 +801,25 @@ namespace DLTD.Modules
             MeshRenderer[] r = part.FindModelComponents<MeshRenderer>();
             for ( int i = 0; i < r.Length; i++ )
             {
-                Materials.AddRange(r[i].materials);
+                var addMat = true;
+
+                if (ignoreGameObjects != null)
+                    for (int j = 0; j < ignoreGameObjects.Length; j++)
+                    {
+                        //                        dbg.Print("Testing " + ignoreGameObjects[j] + " against " + r[i].gameObject.name);
+                        if (ignoreGameObjects[j] == "dumpGameObjectsToLog")
+                        {
+                            Debug.Log("[ModuleTintable] " + part.name + " GameObject " + r[i].gameObject.name);
+                        }
+                        else if (ignoreGameObjects[j] == r[i].gameObject.name)
+                        {
+                            //                           dbg.Print("Ignoring gameObject " + r[i].gameObject.name);
+                            addMat = false;
+                        }
+                    }
+
+                if ( addMat)
+                    Materials.AddRange(r[i].materials);
             }
 
             if (ManagedMaterials.Count == 0)
@@ -1033,7 +1051,7 @@ namespace DLTD.Modules
             //            ignoreGameObjects = node.GetValues("ignoreGameObject");
             var goNode = node.GetValue("ignoreGameObjects");
             if( goNode != null )
-                ignoreGameObjects = goNode.Split(',');
+                ignoreGameObjects = goNode.Trim().Split(',');
 
             rawMaps = node.GetValues("Map");
 

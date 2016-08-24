@@ -82,6 +82,7 @@
     <Compile Include="Assets\Properties.cs" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="Assets\ModuleTintable\Shaders\DLTDSpecGlossPaintMask.shader" />
     <None Include="Assets\ModuleTintable\Shaders\DLTDTintedSpecularMulti.shader" />
     <None Include="Assets\ModuleTintable\Shaders\SpecularPaintMask.shader" />
     <None Include="Assets\ModuleTintable\Shaders\Tint.cginc" />

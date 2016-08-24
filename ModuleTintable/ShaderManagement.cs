@@ -187,7 +187,7 @@ namespace DLTD.Utility
             useBlend = prefab.useBlend;
         }
 
-        private bool shaderKeywordExists(string kw)
+        private bool ShaderKeywordExists(string kw)
         {
             if (managedMat != null && managedMat.shader != null)
             {
@@ -222,7 +222,7 @@ namespace DLTD.Utility
                 // that way if we try and set the map we get the correct shader functionality
                 
                 mapKey = mapEntry.Key.ToUpper();
- //               if (shaderKeywordExists(mapKey))
+ //               if (ShaderKeywordExists(mapKey))
  // I think shader.Keywords is set by EnableKeywords...
                 {
                     dbg.Print("Attempting to enable keyword " + mapKey + " from keyword scan");
@@ -230,7 +230,7 @@ namespace DLTD.Utility
                 }
 
             }
-            if (disableBlendUIfor != null && shaderKeywordExists(disableBlendUIfor.ToUpper()))
+            if (disableBlendUIfor != null && ShaderKeywordExists(disableBlendUIfor.ToUpper()))
             {
                 dbg.Print("useBlend set to " + !managedMat.IsKeywordEnabled(disableBlendUIfor.ToUpper()));
                 useBlend = !managedMat.IsKeywordEnabled(disableBlendUIfor.ToUpper());
@@ -280,8 +280,7 @@ namespace DLTD.Utility
         public void Load(ConfigNode node)
         {
             var mapEntries = node.GetValues("Map");
-            if (mapEntries != null)
-                splitMaps(mapEntries);
+            Load(mapEntries);
         }
 
         public void Load( string[] mapEntries )

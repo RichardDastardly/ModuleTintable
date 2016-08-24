@@ -69,6 +69,21 @@ float _GlossMult;
 			return c;
 		}
 
+		inline fixed4 LightingCookTorrance(SurfaceOutput s, half3 lightDir, half3 viewDir)
+		{
+			fixed3 halfDir = normalize(lightDir + viewDir);
+			fixed3 nN = normalize(s.Normal);
+			fixed3 halfDotnN2 = max(0, dot(halfDir, nN)) * 2;
+			fixed3 viewDotHalf = max( 0, dot(viewDir, halfDir));
+
+			fixed atn = min(1, min((halfDotnN2 *dot(viewDir, nN)) / viewDotHalf, halfDotnN2* dot(lightDir, nN) / viewDotHalf));
+			fixed4 c;
+	//		c.rgb = (_LightColor0.rgb * ((s.Albedo * diff) + (spec *_SpecColor.rgb))) * atn;
+	//		c.a = s.Alpha + _LightColor0.a * _SpecColor.a * spec * atn;
+			return c;
+
+		}
+
 // General function to get blending value
 // needs refining/refactoring, but works. Not sure why it needs so many saturates, didn't when I was working it out...
 		// replace the function with a macro when satisfied

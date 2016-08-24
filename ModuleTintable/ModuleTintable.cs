@@ -439,15 +439,20 @@ namespace DLTD.Modules
         public float tintValue = 150;
 
         [Section(3)]
+        [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = true, guiName = "Palette"), UI_Label()]
+        public float tintActivePalette;
+
+        [Section(3)]
         [KSPEvent(guiActive = false, guiActiveEditor = true, guiName = "Next colour")]
         public void UINextColour()
         {
 
             Events[nameof(UIPrevColour)].guiActiveEditor = true;
-
+            tintActivePalette = Palette.activeEntry;
             if (Palette.activeEntry < paintableColours)
             {
                 ColourSetToUI(Palette.Next());
+
                 if( Palette.activeEntry == paintableColours )
                     Events[nameof(UINextColour)].guiActiveEditor = false;
             }
@@ -461,6 +466,7 @@ namespace DLTD.Modules
             if (Palette.activeEntry > 0 )
             {
                 ColourSetToUI(Palette.Previous());
+                tintActivePalette = Palette.activeEntry;
                 if (Palette.activeEntry == 0 )
                     Events[nameof(UIPrevColour)].guiActiveEditor = false;
                 // disable button
@@ -592,7 +598,7 @@ namespace DLTD.Modules
 
             SectionMembers = new Dictionary<string, MemberInfo>();
             MembersBySection = new List<SectionControlSection>();
-
+            
 
             var _thisType = obj.GetType();
             var _classMembers = _thisType.GetMembers(BindingFlags.Instance|BindingFlags.Public);

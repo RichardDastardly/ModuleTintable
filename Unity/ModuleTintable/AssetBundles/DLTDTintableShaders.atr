@@ -2,7 +2,7 @@ ASSET_ATTRIBUTE
 {
 	name = DLTD/SpecularPaintMask
 	useBlend = false
-	numColourAreas = 16
+	numColourAreas = 18
 }
 ASSET_ATTRIBUTE
 {

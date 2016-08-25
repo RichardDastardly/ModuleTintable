@@ -128,7 +128,7 @@ namespace DLTD.Utility
 
         public void OnDestroy()
         {
-            Debug.Log(mdbtag + "OnDestroy()");
+            Debug.Log("[ModuleTrace] OnDestroy()");
         }
     }
 }

@@ -65,13 +65,32 @@ namespace DLTD.Utility
         }
     }
 
-    public enum BundleState {  Unloaded, BundleLoading, AssetLoading, Loaded }
+    public enum BundleState {  Unloaded, BundleLoading, AssetLoading, AttributesLoading, Loaded }
+    public delegate void BundleStateChangeEvent(BundleRecord b);
 
     public class BundleRecord
     {
-        public BundleState state;
+        public BundleStateChangeEvent BundleStateChanged;
+
+        public virtual void OnStateChange()
+        {
+            BundleStateChanged?.Invoke(this);
+        }
+
+        private BundleState _state;
+        public BundleState state
+        {
+            get { return _state; }
+            set {
+                _state = value;
+                OnStateChange();
+            }
+        }
+
         public string BundleID;
         public string BundleLoc;
+        public int TTL = 0;
+
         public string BundleLocForWWW
         {
             get { return "file:///" + BundleLoc; }
@@ -118,7 +137,7 @@ namespace DLTD.Utility
                     yield break;
                 }
 
-                //           dbg.Print("LoadAssetBundle: bundle " + b.BundleID + " loaded from disk, preparing to load assets.");
+  //                         dbg.Print("LoadAssetBundle: bundle " + bundleRec.BundleID + " loaded from disk, preparing to load assets.");
 
                 var bundle = www.assetBundle;
                 bundleRec.state = BundleState.AssetLoading;
@@ -126,7 +145,7 @@ namespace DLTD.Utility
 
                 yield return assetsLoadRequest;
 
-                //           dbg.Print("LoadAssetBundle: bundle " + b.BundleID + " assets loaded.");
+  //                         dbg.Print("LoadAssetBundle: bundle " + bundleRec.BundleID + " assets loaded.");
 
                 bundleRec.Assets = assetsLoadRequest.allAssets;
 
@@ -140,46 +159,53 @@ namespace DLTD.Utility
                     Assets[assetName] = assetRec;
                 }
 
+                bundleRec.state = BundleState.AttributesLoading;
+                LoadAssetAttributes(bundleRec);
+
                 bundleRec.state = BundleState.Loaded;
+
                 bundle.Unload(false);
             }
         }
 
         private string attributeTag = "ASSET_ATTRIBUTE";
 
-        private IEnumerator LoadAssetAttributes( BundleRecord bundleRec)
+        private void LoadAssetAttributes( BundleRecord bundleRec)
         {
-            while (bundleRec.state != BundleState.Loaded )
-                yield return null;
-
             var cfgFile = bundleRec.BundleLoc + ".atr";
-            //dbg.Print("Loading attributes for bundle " + b.BundleID + " from " + cfgFile);
 
-            if (File.Exists(cfgFile))
+            if (!File.Exists(cfgFile))
+                return;
+
+  //          dbg.Print("Loading attributes for bundle " + bundleRec.BundleID + " from " + cfgFile);
+            bundleRec.Attributes = ConfigNode.Load(cfgFile);
+
+            foreach (ConfigNode node in bundleRec.Attributes.GetNodes(attributeTag))
             {
-                //dbg.Print(cfgFile + " exists, loading...");
-                bundleRec.Attributes = ConfigNode.Load(cfgFile);
-
-                foreach (ConfigNode node in bundleRec.Attributes.GetNodes(attributeTag))
+                var name = node.GetValue("name");
+  //              dbg.Print("Attribute loader looking for [" + name + "]");
+                if (Assets.ContainsKey(name))
                 {
-                    var name = node.GetValue("name");
-                    dbg.Print("Attribute loader looking for [" + name + "]");
-                    if (Assets.ContainsKey(name))
-                    {
-                        dbg.Print("Attribute loader found " + name);
-                        Assets[name].Attributes = node;
-                    }
+   //                 dbg.Print("Attribute loader found " + name);
+                    Assets[name].Attributes = node;
                 }
             }
+
         }
 
-        public BundleRecord LoadModBundle( KSPPaths modPaths, string bundleFN, string bundleID )
+        public BundleRecord LoadModBundle( BundleRecord bundleRec )
         {
-   //         dbg.Print("LoadModBundle: " + p.Mod + " " + bundleFN + " " + bundleID);
-            var bundleRec = new BundleRecord(modPaths.Packages + "/" + bundleFN, bundleID);
             StartCoroutine(LoadAssetBundle(bundleRec));
-            StartCoroutine(LoadAssetAttributes(bundleRec));
+            //          StartCoroutine(LoadAssetAttributes(bundleRec));
             return bundleRec;
+        }
+
+        public BundleRecord LoadModBundle( KSPPaths modPaths, string bundleFN, string bundleID, BundleStateChangeEvent bundleCB = null )
+        {
+ //           dbg.Print("LoadModBundle: " + modPaths.Mod + " " + bundleFN + " " + bundleID);
+            var bundleRec = new BundleRecord(modPaths.Packages + "/" + bundleFN, bundleID);
+            bundleRec.BundleStateChanged += bundleCB;
+            return LoadModBundle(bundleRec);
         }
 
         public Dictionary<string,T> GetRawAssetsOfTypeBundledIn<T>( string bundleID ) where T : UnityEngine.Object

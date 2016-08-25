@@ -220,6 +220,8 @@ namespace DLTD.Modules
     #endregion
 
     #region Palette
+    public delegate void PaletteActiveEntryEvent( Palette p );
+
     public class Palette : IConfigNode
     {
         private List<PaletteEntry> _pStore;
@@ -229,12 +231,21 @@ namespace DLTD.Modules
             set { _pStore[index] = value; }
         }
 
+        public PaletteActiveEntryEvent PaletteActiveEntryChange;
+
+        public virtual void OnPaletteEntryChange()
+        {
+            PaletteActiveEntryChange?.Invoke(this);
+        }
+
         public int Count
         {
             get { return _pStore.Count; }
         }
 
         public int activeEntry = 0;
+
+        //
         private int _EntryCount = 1;
         public int Length
         {
@@ -276,10 +287,14 @@ namespace DLTD.Modules
 
         public PaletteEntry Next()
         {
-            if (activeEntry++ < _EntryCount) // _EntryCount starts at 1
+            if (activeEntry < _EntryCount) 
             {
+                activeEntry++;
+
                 if (activeEntry >= _pStore.Count || _pStore[activeEntry] == null)
                     _pStore.Add(new PaletteEntry());
+
+                OnPaletteEntryChange();
                 return _pStore[activeEntry];
             }
             return null;
@@ -287,8 +302,12 @@ namespace DLTD.Modules
 
         public PaletteEntry Previous()
         {
-            if (activeEntry > 0 )
-                return _pStore[--activeEntry];
+            if (activeEntry > 0)
+            {
+                activeEntry--;
+                OnPaletteEntryChange();
+                return _pStore[activeEntry];
+            }
             return null;
         }
 
@@ -303,9 +322,9 @@ namespace DLTD.Modules
             _EntryCount++;
         }
 
-        public void Limit( int c )
+        public void Limit( int c ) // number of entries, not final array position
         {
-            _EntryCount = c;
+            _EntryCount = c > 0 ? c - 1 : 0;
         }
 
         public void Clear()
@@ -372,7 +391,17 @@ namespace DLTD.Modules
         private bool isSymmetryCounterpart = false;
 
         [KSPField]
-        public Palette Palette;
+        public Palette _Palette;
+        public Palette Palette
+        {
+            get { return _Palette; }
+            set {
+                _Palette = value;
+                _Palette.PaletteActiveEntryChange = UIEvent_PaletteEntrySwitch;
+            }
+        }
+
+        private PaletteEntry defaultPaletteEntry;
 
         // should only be set in part config if there's a mask
         [KSPField(isPersistant = true)]
@@ -381,7 +410,7 @@ namespace DLTD.Modules
         [KSPField(isPersistant = true)]
         public string requestShader;
 
-  //      [KSPField(isPersistant = true)]
+        //      [KSPField(isPersistant = true)]
         public string[] ignoreGameObjects;
         public string[] rawMaps;
 
@@ -439,39 +468,34 @@ namespace DLTD.Modules
         public float tintValue = 150;
 
         [Section(3)]
-        [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = true, guiName = "Palette"), UI_Label()]
+        [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = true, guiName = "Palette Entry"), UI_Label()]
         public float tintActivePalette;
+
+        #region Palette switch UI
+        private void UIEvent_PaletteEntrySwitch(Palette p)
+        {
+ //           dbg.Print("Palette event, active: " + p.activeEntry);
+            Events[nameof(UIPrevColour)].guiActiveEditor = (p.activeEntry != 0);
+            Events[nameof(UINextColour)].guiActiveEditor = (p.activeEntry != p.Length);
+
+            tintActivePalette = p.activeEntry;
+            ColourSetToUI(p.Active());
+        }
 
         [Section(3)]
         [KSPEvent(guiActive = false, guiActiveEditor = true, guiName = "Next colour")]
         public void UINextColour()
         {
-
-            Events[nameof(UIPrevColour)].guiActiveEditor = true;
-            tintActivePalette = Palette.activeEntry;
-            if (Palette.activeEntry < paintableColours)
-            {
-                ColourSetToUI(Palette.Next());
-
-                if( Palette.activeEntry == paintableColours )
-                    Events[nameof(UINextColour)].guiActiveEditor = false;
-            }
+            Palette.Next();
         }
 
         [Section(3)]
-        [KSPEvent(guiActive = false, guiActiveEditor = true, guiName = "Prev colour")]
+        [KSPEvent(guiActive = false, guiActiveEditor = false, guiName = "Prev colour")]
         public void UIPrevColour()
         {
-            Events[nameof(UINextColour)].guiActiveEditor = true;
-            if (Palette.activeEntry > 0 )
-            {
-                ColourSetToUI(Palette.Previous());
-                tintActivePalette = Palette.activeEntry;
-                if (Palette.activeEntry == 0 )
-                    Events[nameof(UIPrevColour)].guiActiveEditor = false;
-                // disable button
-            }
+            Palette.Previous();
         }
+        #endregion
 
         [Section(4)]
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Glossiness"),

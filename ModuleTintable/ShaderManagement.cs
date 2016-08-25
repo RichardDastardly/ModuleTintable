@@ -22,6 +22,7 @@ namespace DLTD.Utility
         [Persistent]
         public List<string> Keywords;
 
+        // shader keyword to turn off any blending
         [Persistent]
         public string disableBlendUIfor;
 
@@ -319,15 +320,15 @@ namespace DLTD.Utility
         {
             Shaders = new List<ShaderRecord>();
             ModuleTintablePaths = new KSPPaths("DLTD/Plugins/ModuleTintable");
+            ManagedShaders = new List<string>();
         }
 
-        private IEnumerator LoadShaders()
+        private void ShaderBundleStateChange( BundleRecord b )
         {
-            var b = AssetMgr.LoadModBundle(ModuleTintablePaths, ShaderBundle, BundleID);
-            while (b.state != BundleState.Loaded)
-                yield return null;
+            if (b.state != BundleState.Loaded)
+                return;
 
-            var bundleContents = AssetMgr.GetAssetsOfType<Shader>(BundleID);
+            var bundleContents = AssetMgr.GetAssetsOfType<Shader>(b.BundleID);
 
             foreach (AssetRecord assetRec in bundleContents.Values)
             {
@@ -348,6 +349,11 @@ namespace DLTD.Utility
                 }
             }
             shadersLoaded = true;
+        }
+
+        private void LoadShaders()
+        {
+            AssetMgr.LoadModBundle(ModuleTintablePaths, ShaderBundle, BundleID, ShaderBundleStateChange );
         }
 
         public ShaderReplacementController GetShader( string shaderName )
@@ -386,7 +392,7 @@ namespace DLTD.Utility
             AssetMgr = AssetManager.instance;
             instance = this;
 
-            StartCoroutine(LoadShaders());
+            LoadShaders();
 
         }
     }

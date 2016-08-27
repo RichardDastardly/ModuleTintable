@@ -252,6 +252,11 @@ namespace DLTD.Modules
             get { return _EntryCount; }
         }
 
+        public int LastIndex
+        {
+            get { return _EntryCount - 1; }
+        }
+
         public Palette()
         {
             Initialise();
@@ -287,7 +292,7 @@ namespace DLTD.Modules
 
         public PaletteEntry Next()
         {
-            if (activeEntry < _EntryCount) 
+            if (activeEntry < LastIndex) 
             {
                 activeEntry++;
 
@@ -295,9 +300,8 @@ namespace DLTD.Modules
                     _pStore.Add(new PaletteEntry());
 
                 OnPaletteEntryChange();
-                return _pStore[activeEntry];
             }
-            return null;
+            return _pStore[activeEntry];
         }
 
         public PaletteEntry Previous()
@@ -306,14 +310,13 @@ namespace DLTD.Modules
             {
                 activeEntry--;
                 OnPaletteEntryChange();
-                return _pStore[activeEntry];
             }
-            return null;
+            return _pStore[activeEntry];
         }
 
-        public PaletteEntry Active()
+        public PaletteEntry Active
         {
-            return _pStore[activeEntry];
+            get { return _pStore[activeEntry]; }
         }
 
         public void Add( PaletteEntry p )
@@ -324,7 +327,8 @@ namespace DLTD.Modules
 
         public void Limit( int c ) // number of entries, not final array position
         {
-            _EntryCount = c > 0 ? c - 1 : 0;
+            //          _EntryCount = c > 0 ? c - 1 : 0;
+            _EntryCount = c;
         }
 
         public void Clear()
@@ -398,6 +402,7 @@ namespace DLTD.Modules
             set {
                 _Palette = value;
                 _Palette.PaletteActiveEntryChange = UIEvent_PaletteEntrySwitch;
+                _Palette.OnPaletteEntryChange();
             }
         }
 
@@ -476,10 +481,10 @@ namespace DLTD.Modules
         {
  //           dbg.Print("Palette event, active: " + p.activeEntry);
             Events[nameof(UIPrevColour)].guiActiveEditor = (p.activeEntry != 0);
-            Events[nameof(UINextColour)].guiActiveEditor = (p.activeEntry != p.Length);
+            Events[nameof(UINextColour)].guiActiveEditor = (p.activeEntry != p.LastIndex);
 
             tintActivePalette = p.activeEntry;
-            ColourSetToUI(p.Active());
+            ColourSetToUI(p.Active);
         }
 
         [Section(3)]
@@ -538,7 +543,7 @@ namespace DLTD.Modules
             Palette = Clipboard;
             Palette.Limit(paintableColours);
             
-            ColourSetToUI(Palette.Active());
+            ColourSetToUI(Palette.Active);
             needUpdate = true;
         }
         #endregion
@@ -568,7 +573,7 @@ namespace DLTD.Modules
                 index = i;
                 type = t;
             }
-
+            
             public SectionControlEntity( int i, MemberTypes t, string n = "" )
             {
                 name = n;
@@ -588,23 +593,14 @@ namespace DLTD.Modules
             private List<SectionControlEntity> _entries = new List<SectionControlEntity>();
             public SectionControlEntity this[int index]
             {
-                get
-                {
-                    return _entries[index];
-                }
-                set
-                {
-                    _entries[index] = value;
-                }
+                get { return _entries[index]; }
+                set { _entries[index] = value; }
             }
             public bool Active = true;
 
             public int Count
             {
-                get
-                {
-                    return _entries.Count;
-                }
+                get { return _entries.Count; }
             }
 
             public void Add( SectionControlEntity e )
@@ -707,7 +703,9 @@ namespace DLTD.Modules
         //    return MemberValues;
         //}
 
-        public Dictionary<string, float> GetKSPFields(int section = 0 )
+        private delegate object FieldRetrieval(SectionControlEntity e );
+
+        private static Dictionary<string, float> BaseGetKSPFields(FieldRetrieval getter, int section = 0 )
         {
             if ((section > MembersBySection.Count )|| (MembersBySection[section] == null))
                     return null;
@@ -719,13 +717,41 @@ namespace DLTD.Modules
                 var _entity = MembersBySection[section][i];
                 if (_entity != null)
                 {
-                    if (_entity.type == SectionEntityType.Field)
-                        MemberValues[_entity.name] = (float)Fields.GetValue(_entity.name);
-                    else if (_entity.type == SectionEntityType.Property)
-                        MemberValues[_entity.name] = (float)(SectionMembers[_entity.name] as PropertyInfo).GetValue(this, null);
+                    //                   if (_entity.type == SectionEntityType.Field)
+                    //                        MemberValues[_entity.name] = (float)Fields.GetValue(_entity.name);
+                    var v = getter(_entity);
+                    if (v != null)
+                    {
+                        MemberValues[_entity.name] = (float)v;
+                    }
+
+ //                   else if (_entity.type == SectionEntityType.Property)
+ //                       MemberValues[_entity.name] = (float)(SectionMembers[_entity.name] as PropertyInfo).GetValue(this, null);
                 }
             }
             return MemberValues;
+        }
+
+        // this "consolidation" appears to be more complicated than the original...
+        public Dictionary<string,float> GetKSPFields( int section = 0)
+        {
+            return BaseGetKSPFields((x) => {
+ //               Debug.Log("Anon delegate passed " + x.name + " as " + x.type.ToString() + " attempting to access Fields, which is " +( Fields != null ? "not": "" ) + " null" );
+                switch (x.type)
+                {
+                    case SectionEntityType.Field:
+                        return Fields.GetValue(x.name);
+                    case SectionEntityType.Property:
+                        return (SectionMembers[x.name] as PropertyInfo).GetValue(this, null);
+                    default:
+                        return null;
+                } }, 
+                section );
+        }
+
+        public Dictionary<string, float> GetKSPFieldDefaults(int section = 0)
+        {
+            return BaseGetKSPFields((x) => { return (x.type == SectionEntityType.Field) ? Fields[x.name].originalValue : null; }, section );
         }
 
         public void SetKSPFields(Dictionary<string, float> fieldData, int section = 0)
@@ -986,7 +1012,7 @@ namespace DLTD.Modules
         {
             //           SetKSPFields(t.GetKSPFields());
             Palette = t.Palette;
-            ColourSetToUI(Palette.Active());
+            ColourSetToUI(Palette.Active);
             needUpdate = true;
             moduleActive = true;
             isSymmetryCounterpart = true;
@@ -1042,10 +1068,11 @@ namespace DLTD.Modules
             Palette.Limit(paintableColours);            
 
             // need to serialise PaletteEntry
-            UIToColourSet(Palette.Active());
+            UIToColourSet(Palette.Active);
 
             SetupUIFieldCallbacks();
             TraverseAndReplaceShaders();
+            Palette.OnPaletteEntryChange();
 
             if( HighLogic.LoadedSceneIsEditor )
                 UIVisible(moduleActive);
@@ -1091,7 +1118,7 @@ namespace DLTD.Modules
             //dbg.Print(part.name + "PaintableColours: " + paintableColours);
  //           dbg.Print("useBlendForStaticPaintMask: " + useBlendForStaticPaintMask.ToString());
 
-            UISectionVisible(paintableColours > 1, (int)UISectionID.Selector);
+//            UISectionVisible(paintableColours > 1, (int)UISectionID.Selector);
         }
 
         public void Update()
@@ -1099,7 +1126,7 @@ namespace DLTD.Modules
             if (needUpdate)
             {
                 needUpdate = false;
-                UIToColourSet(Palette.Active());
+                UIToColourSet(Palette.Active);
                 UpdateShaderValues();
             }
         }

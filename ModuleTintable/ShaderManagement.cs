@@ -131,10 +131,11 @@ namespace DLTD.Utility
 
             if (managedMat != null && tintPalette != null)
             {
-                if (ParameterMap == null)
+                if (ParameterMap.Count == 0 )
                 {
-                    throw new Exception("ParameterMap is null for shader " + Shader.name);
+                    throw new Exception("ParameterMap is zero length for shader " + Shader.name);
                 }
+
 
                 // make sure section 1 entries are only copied to the first palette entry
                 for (int i = 0; i < tintPalette.Length; i++)
@@ -142,7 +143,7 @@ namespace DLTD.Utility
                     var paletteEntry = tintPalette[i];
                     foreach (var shaderParams in ParameterMap)
                     {                                                                                                                                                                                                                                                                                                                                 
- //                       dbg.Print("Palette["+i+"] " + shaderParams.Key + "->" + shaderParams.Value + ": "+paletteEntry.GetForShader(shaderParams.Key));
+ //                      dbg.Print("Palette["+i+"] " + shaderParams.Key + "->" + shaderParams.Value + ": "+paletteEntry.GetForShader(shaderParams.Key));
                         var f = paletteEntry.GetForShader(shaderParams.Key);
                         if(f != null)
                             managedMat.SetFloat(shaderParams.Value, (float)f);
@@ -356,20 +357,26 @@ namespace DLTD.Utility
             AssetMgr.LoadModBundle(ModuleTintablePaths, ShaderBundle, BundleID, ShaderBundleStateChange );
         }
 
-        public ShaderReplacementController GetShader( string shaderName )
+        private int GetShaderIndexFromString( string shaderName )
         {
             for (int i = 0; i < Shaders.Count; i++)
                 if (Shaders[i].Shader.name == shaderName)
-                    return new ShaderReplacementController(Shaders[i]);
+                    return i;
 
+            return -1;
+        }
+        public ShaderReplacementController GetShader(string shaderName)
+        {
+            var idx = GetShaderIndexFromString(shaderName);
+            if (idx >= 0)
+                return new ShaderReplacementController(Shaders[idx]);
             return null;
         }
 
-        public ShaderReplacementController GetShader( Material matToManage )
+        public ShaderReplacementController GetShader(Material matToManage)
         {
-            for (int i = 0; i < Shaders.Count; i++)
-                if (Shaders[i].Shader.name == matToManage.shader.name)
-                    return new ShaderReplacementController(matToManage);
+            if (GetShaderIndexFromString(matToManage.shader.name) >= 0)
+                return new ShaderReplacementController(matToManage);
             return null;
         }
 

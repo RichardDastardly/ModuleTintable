@@ -39,8 +39,8 @@ Shader "DLTD/Tinted Specular Multi"
 
 		CGPROGRAM
 
-#pragma multi_compile __ BLENDMASK 
-#pragma multi_compile __ EMISSIVE BUMPMAP
+		#pragma multi_compile __ BLENDMASK 
+		#pragma multi_compile __ EMISSIVE BUMPMAP
 
 		#pragma surface surf NormalizedBlinnPhong keepalpha
 		#pragma target 3.0
@@ -48,7 +48,7 @@ Shader "DLTD/Tinted Specular Multi"
 		half _Shininess;
 
 		sampler2D _MainTex;
-		float4 _Color;
+		float3 _Color;
 
 #if defined (BLENDMASK)
 		sampler2D _BlendMask;
@@ -105,7 +105,7 @@ Shader "DLTD/Tinted Specular Multi"
 			float blend = BlendFactor(color);
 #endif
 
-			// code must write _Colour in RGB now
+			// code must write _Color in RGB now
 			o.Albedo = lerp(color.rgb, color.rgb * _Color, blend) *_BurnColor;
 			o.Emission = emission;
 			o.Gloss = color.a *_GlossMult;

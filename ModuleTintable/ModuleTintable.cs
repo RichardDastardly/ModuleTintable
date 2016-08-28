@@ -498,7 +498,7 @@ namespace DLTD.Modules.ModuleTintable
         [Section((int)UISectionID.Colour)]
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Tint Value"),
           UI_FloatRange(minValue = 0, maxValue = Constant.UI_Slider_Max, stepIncrement = 1, scene = UI_Scene.Editor)]
-        public float tintValue = 150;
+        public float tintValue = Constant.UI_Slider_Max * 0.6f;
 
         [Section((int)UISectionID.Colour)]
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = true, guiName = "Palette Entry"), UI_Label()]
@@ -532,13 +532,13 @@ namespace DLTD.Modules.ModuleTintable
 
         [Section((int)UISectionID.Surface)]
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Glossiness"),
-          UI_FloatRange(minValue = 0, maxValue = 100, stepIncrement = 1, scene = UI_Scene.Editor)]
-        public float tintGloss = 100;
+          UI_FloatRange(minValue = 0, maxValue = Constant.UI_Slider_Max, stepIncrement = 1, scene = UI_Scene.Editor)]
+        public float tintGloss = Constant.UI_Slider_Max * 0.78125f;
 
         [Section((int)UISectionID.Surface)]
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Reflection tightness"),
-          UI_FloatRange(minValue = 0, maxValue = 100, stepIncrement = 1, scene = UI_Scene.Editor)]
-        public float tintTightness = 100;
+          UI_FloatRange(minValue = 0, maxValue = Constant.UI_Slider_Max, stepIncrement = 1, scene = UI_Scene.Editor)]
+        public float tintTightness = Constant.UI_Slider_Max;
 
         #region Clipboard
 

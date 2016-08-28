@@ -189,6 +189,11 @@ namespace DLTD.Utility
             useBlend = prefab.useBlend;
         }
 
+        public ShaderReplacementController( Material matToManage, ShaderAbstract prefab ) : this( prefab )
+        {
+            managedMat = matToManage;
+        }
+
         private bool ShaderKeywordExists(string kw)
         {
             if (managedMat != null && managedMat.shader != null)
@@ -375,8 +380,9 @@ namespace DLTD.Utility
 
         public ShaderReplacementController GetShader(Material matToManage)
         {
-            if (GetShaderIndexFromString(matToManage.shader.name) >= 0)
-                return new ShaderReplacementController(matToManage);
+            var idx = GetShaderIndexFromString(matToManage.shader.name);
+            if (idx >= 0)
+                return new ShaderReplacementController(matToManage, Shaders[idx] );
             return null;
         }
 

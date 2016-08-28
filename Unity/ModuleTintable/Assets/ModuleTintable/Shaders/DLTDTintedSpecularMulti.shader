@@ -11,7 +11,7 @@ Shader "DLTD/Tinted Specular Multi"
 		[Normal]_BumpMap("_BumpMap", 2D) = "bump" {}
 
 		_Color("Main Colour", Color) = (1,1,1,1)
-		_SpecColour("Specular Colour", Color) = (0.5, 0.5, 0.5, 1)
+		_SpecColor("Specular Colour", Color) = (0.5, 0.5, 0.5, 1)
 		_Shininess("Shininess", Range(0.03, 1)) = 0.078125
 		_GlossMult("Gloss multiplier", Range(0,1)) = 1
 

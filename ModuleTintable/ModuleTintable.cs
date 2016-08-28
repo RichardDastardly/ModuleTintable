@@ -7,9 +7,8 @@ using DLTD.Utility;
 
 // please bear in mind I don't know any better yet.
 
-namespace DLTD.Modules
+namespace DLTD.Modules.ModuleTintable
 {
-
     #region Custom Attributes
     [AttributeUsage(AttributeTargets.Field | AttributeTargets.Struct|AttributeTargets.Method|AttributeTargets.Property )]
     public sealed class Section : Attribute
@@ -26,6 +25,13 @@ namespace DLTD.Modules
         {
             this.uiEntry = uiEntry;
         }
+    }
+    #endregion
+
+    #region Constants
+    public static class Constant // check naming later, this might cause namespace clashes
+    {
+        public const int UI_Slider_Max = 255;
     }
     #endregion
 
@@ -82,7 +88,7 @@ namespace DLTD.Modules
         {
             try
             {
-                return Mathf.Clamp01(_Settings[k] / 255);
+                return Mathf.Clamp01(_Settings[k] / Constant.UI_Slider_Max);
             }
             catch(KeyNotFoundException)
             {
@@ -131,12 +137,34 @@ namespace DLTD.Modules
             t.Values = Values;
         }
 
+        // taken from the shader
+
+        private const float Epsilon = 1e-10f;
+
+        public static Color HSVtoRGB2( float H = 0f, float S = 0f, float V = 0f)
+        {
+            H = H / Constant.UI_Slider_Max;
+            S = S / Constant.UI_Slider_Max;
+            V = V / Constant.UI_Slider_Max;
+
+            // HUEtoRGB section
+            var R = Mathf.Abs(H * 6 - 3) - 1;
+            var G = 2 - Mathf.Abs(H * 6 - 2);
+            var B = 2 - Mathf.Abs(H * 6 - 4);
+
+            return new Color(
+                ( R - 1 ) * (S + 1 ) * V,
+                ( G - 1) * (S + 1) * V,
+                ( B - 1) * (S + 1) * V
+                );
+        }
+
         public static Color HSVtoRGB(float H, float S, float V)
         {
             float R, G, B;
-            H = H / 255;
-            S = S / 255;
-            V = V / 255;
+            H = H / Constant.UI_Slider_Max;
+            S = S / Constant.UI_Slider_Max;
+            V = V / Constant.UI_Slider_Max;
 
 
             if (V <= 0)
@@ -425,54 +453,54 @@ namespace DLTD.Modules
         private enum UISectionID : int { All, Blend, Colour, Selector, Surface, Channel, Clipboard };
         private enum MapChannel : int { C1 = 0xFF0000, C2 = 0xFF00, C3 = 0xFF };
 
-        [Section(1)] // can't use enum here, grumble
+        [Section((int)UISectionID.Blend)]
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Blend Value"),
-            UI_FloatRange(minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
+            UI_FloatRange(minValue = 0, maxValue = Constant.UI_Slider_Max, stepIncrement = 1, scene = UI_Scene.Editor)]
         public float tintBlendPoint = 0;
 
-        [Section(1)]
+        [Section((int)UISectionID.Blend)]
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Blend Band"),
-         UI_FloatRange(minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
+         UI_FloatRange(minValue = 0, maxValue = Constant.UI_Slider_Max, stepIncrement = 1, scene = UI_Scene.Editor)]
         public float tintBlendBand = 0;
 
-        [Section(1)]
+        [Section((int)UISectionID.Blend)]
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Blend Falloff"),
-         UI_FloatRange(minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
+         UI_FloatRange(minValue = 0, maxValue = Constant.UI_Slider_Max, stepIncrement = 1, scene = UI_Scene.Editor)]
         public float tintBlendFalloff = 0;
 
-        [Section(1)]
+        [Section((int)UISectionID.Blend)]
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Blend Saturation Threshold"),
-         UI_FloatRange(minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
+         UI_FloatRange(minValue = 0, maxValue = Constant.UI_Slider_Max, stepIncrement = 1, scene = UI_Scene.Editor)]
         public float tintBlendSaturationThreshold = 0;
 
-        [Section(1, uiEntry = false)]
+        [Section((int)UISectionID.Blend, uiEntry = false)]
         public float saturationFalloff
         {
-            get { return Mathf.Clamp01(tintBlendSaturationThreshold * 0.75f); }
+            get { return tintBlendSaturationThreshold * 0.75f; }
         }
 
-        [Section(1, uiEntry = false)]
+        [Section((int)UISectionID.Blend, uiEntry = false)]
         public float saturationWindow
         {
             get { return tintBlendSaturationThreshold - saturationFalloff; }
         }
 
-        [Section(2)]
+        [Section((int)UISectionID.Colour)]
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Tint Hue"),
-          UI_FloatRange(minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
+          UI_FloatRange(minValue = 0, maxValue = Constant.UI_Slider_Max, stepIncrement = 1, scene = UI_Scene.Editor)]
         public float tintHue = 0;
 
-        [Section(2)]
+        [Section((int)UISectionID.Colour)]
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Tint Saturation"),
-          UI_FloatRange(minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
+          UI_FloatRange(minValue = 0, maxValue = Constant.UI_Slider_Max, stepIncrement = 1, scene = UI_Scene.Editor)]
         public float tintSaturation = 0;
 
-        [Section(2)]
+        [Section((int)UISectionID.Colour)]
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Tint Value"),
-          UI_FloatRange(minValue = 0, maxValue = 255, stepIncrement = 1, scene = UI_Scene.Editor)]
+          UI_FloatRange(minValue = 0, maxValue = Constant.UI_Slider_Max, stepIncrement = 1, scene = UI_Scene.Editor)]
         public float tintValue = 150;
 
-        [Section(3)]
+        [Section((int)UISectionID.Colour)]
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = true, guiName = "Palette Entry"), UI_Label()]
         public float tintActivePalette;
 
@@ -487,14 +515,14 @@ namespace DLTD.Modules
             ColourSetToUI(p.Active);
         }
 
-        [Section(3)]
+        [Section((int)UISectionID.Selector)]
         [KSPEvent(guiActive = false, guiActiveEditor = true, guiName = "Next colour")]
         public void UINextColour()
         {
             Palette.Next();
         }
 
-        [Section(3)]
+        [Section((int)UISectionID.Selector)]
         [KSPEvent(guiActive = false, guiActiveEditor = false, guiName = "Prev colour")]
         public void UIPrevColour()
         {
@@ -502,12 +530,12 @@ namespace DLTD.Modules
         }
         #endregion
 
-        [Section(4)]
+        [Section((int)UISectionID.Surface)]
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Glossiness"),
           UI_FloatRange(minValue = 0, maxValue = 100, stepIncrement = 1, scene = UI_Scene.Editor)]
         public float tintGloss = 100;
 
-        [Section(4)]
+        [Section((int)UISectionID.Surface)]
         [KSPField(category = "TintMenu", isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "Reflection tightness"),
           UI_FloatRange(minValue = 0, maxValue = 100, stepIncrement = 1, scene = UI_Scene.Editor)]
         public float tintTightness = 100;
@@ -527,7 +555,7 @@ namespace DLTD.Modules
             }
         }
 
-        [Section(6)]
+        [Section((int)UISectionID.Clipboard)]
         [KSPEvent(guiActive = false, guiActiveEditor = true, guiName = "Copy colour settings")]
         public void CopytoClipboard()
         {
@@ -535,7 +563,7 @@ namespace DLTD.Modules
             Clipboard = Palette;
         }
 
-        [Section(6)]
+        [Section((int)UISectionID.Clipboard)]
         [KSPEvent(guiActive = false, guiActiveEditor = true, guiName = "Paste colour settings")]
         public void PastefromClipboard()
         {

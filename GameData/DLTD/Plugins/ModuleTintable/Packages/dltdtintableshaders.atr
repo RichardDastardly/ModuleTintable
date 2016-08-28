@@ -1,0 +1,39 @@
+ASSET_ATTRIBUTE
+{
+	name = DLTD/SpecularPaintMask
+	useBlend = false
+	numColourAreas = 18
+}
+ASSET_ATTRIBUTE
+{
+	name = DLTD/Tinted Specular Multi
+	testForKeyword = BumpMap
+	testForKeyword = Emissive
+	replace = KSP/Specular
+	replace = KSP/Bumped Specular
+	replace = KSP/Emissive/Specular
+	parameter = tintBlendPoint, _TintPoint
+	parameter = tintBlendBand, _TintBand
+	parameter = tintBlendFalloff, _TintFalloff
+	parameter = tintBlendSaturationThreshold, _TintSatThreshold
+	parameter = saturationFalloff, _SaturationFalloff
+	parameter = saturationWindow, _SaturationWindow
+	parameter = tintGloss, _GlossMult
+	parameter = tintTightness, _Shininess
+	useBlend = true
+	disableBlendUIfor = BlendMask
+}
+ASSET_ATTRIBUTE
+{
+	name = KSP/Tinted Specular
+	replace = KSP/Specular
+	parameter = tintBlendPoint, _TintPoint
+	parameter = tintBlendBand, _TintBand
+	parameter = tintBlendFalloff, _TintFalloff
+	parameter = tintBlendSaturationThreshold, _TintSatThreshold
+	parameter = saturationFalloff, _SaturationFalloff
+	parameter = saturationWindow, _SaturationWindow
+	parameter = tintGloss, _GlossMult
+	useBlend = true
+}
+

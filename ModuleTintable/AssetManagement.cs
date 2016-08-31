@@ -183,6 +183,7 @@ namespace DLTD.Utility
 
                 while (bundleRec.state != BundleState.BundleReadyForUnload)
                     yield return bundleRec;
+
                 dbg.Print("LoadAssetBundle: unloading bundle " + bundleRec.BundleID);
                 bundle.Unload(false);
                 bundleRec.state = BundleState.Final;

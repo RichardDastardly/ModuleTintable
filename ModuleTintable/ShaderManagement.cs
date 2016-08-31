@@ -217,7 +217,7 @@ namespace DLTD.Utility
                         Debug.LogError("GetTexture failed for " + mapEntry.Value + ", ignoring map insertion");
                 }
                 else
-                    Debug.LogError("Attempted to set map property " + mapEntry.Key + " in shader " + managedMat.shader.name);
+                    Debug.LogError("Attempted to set nonexistant map property " + mapEntry.Key + " in shader " + managedMat.shader.name);
 
 
                 // shader keywords are uppercase versions of map parameters

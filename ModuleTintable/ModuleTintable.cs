@@ -28,10 +28,11 @@ namespace DLTD.Modules.ModuleTintable
     #endregion
 
     #region Constants
-    public static class Constant // check naming later, this might cause namespace clashes
+    public static class Constant // Module only namespace... thankfully. Lack of global #define or even global constants is really irritating sometimes
     {
         public const int UI_Slider_Max = 255;
         public const string PaletteTag = "PALETTE";
+        public const string PaletteEntryTag = "PALETTE_ENTRY";
     }
     #endregion
 
@@ -54,7 +55,7 @@ namespace DLTD.Modules.ModuleTintable
 
         public float this[string key]
         {
-            get { try { return _Settings[key]; } catch (KeyNotFoundException) { return 0; } }
+            get { try { return _Settings[key]; } catch (KeyNotFoundException) { return 0; } } // yeah, should probably not return defaults
             set { _Settings[key] = value; }
         }
 
@@ -252,6 +253,7 @@ namespace DLTD.Modules.ModuleTintable
 
     public class Palette : IConfigNode
     {
+
         private List<PaletteEntry> _pStore;
         public PaletteEntry this[int index]
         {
@@ -365,15 +367,13 @@ namespace DLTD.Modules.ModuleTintable
             Initialise();
         }
 
-        private static string _entryTag = "PALETTE_ENTRY";
-
         public void Load(ConfigNode node)
         {
             Clear();
             Initialise();
             // Node is called PALETTE - assume this is passed the node, not the entire config 
             // entries will be PALETTE_ENTRY sub nodes
-            foreach (ConfigNode e in node.GetNodes(_entryTag)) // I hope GetNodes() is ordered...
+            foreach (ConfigNode e in node.GetNodes(Constant.PaletteEntryTag)) // I hope GetNodes() is ordered...
             {
                 var p_e = new PaletteEntry();
                 p_e.Load(e);
@@ -385,7 +385,7 @@ namespace DLTD.Modules.ModuleTintable
         {
             for ( int i = 0; i < _pStore.Count; i++ )
             {
-                var n = new ConfigNode(_entryTag);
+                var n = new ConfigNode(Constant.PaletteEntryTag);
                 _pStore[i].Save(n);
                 node.AddNode( n );
             }

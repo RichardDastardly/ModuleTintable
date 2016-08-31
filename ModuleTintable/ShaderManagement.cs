@@ -29,9 +29,6 @@ namespace DLTD.Utility
         public bool useBlend = false;
 
         [Persistent]
-        public ShaderOverlayMask shadingOverlayType = ShaderOverlayMask.None;
-
-        [Persistent]
         public int numColourAreas = 1;
 
         [Persistent]
@@ -79,7 +76,6 @@ namespace DLTD.Utility
                 s += Replace[i] + " ";
 
             s += " useBlend: " + useBlend.ToString();
-            s += " shadingOverlayType: " + shadingOverlayType.ToString();
             dbg.Print(s);
 
         }

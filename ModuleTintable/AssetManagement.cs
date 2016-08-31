@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace DLTD.Utility
 {
-    public static class DLTD_Util_Const
+    public static class DLTD_Utility_AssetManagment_Constant
     {
         public const string pathSep = "/";
         public const int bundleUnloadFramecount = 30;
@@ -17,13 +17,13 @@ namespace DLTD.Utility
         public string Base;
         public string LocalDir
         {
-            get { return Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location).Replace("\\", DLTD_Util_Const.pathSep); }
+            get { return Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location).Replace("\\", DLTD_Utility_AssetManagment_Constant.pathSep); }
         }
            
         private string _modsub;
         public string Mod
         {
-            get { return Base + DLTD_Util_Const.pathSep + "GameData" + DLTD_Util_Const.pathSep +  _modsub; }
+            get { return Base + DLTD_Utility_AssetManagment_Constant.pathSep + "GameData" + DLTD_Utility_AssetManagment_Constant.pathSep +  _modsub; }
             set { _modsub = value; }
         }
 
@@ -35,17 +35,17 @@ namespace DLTD.Utility
         private string _pdLivesIn = "";
         public string PluginDataIsBelow
         {
-            set { _pdLivesIn = value + DLTD_Util_Const.pathSep; }
+            set { _pdLivesIn = value + DLTD_Utility_AssetManagment_Constant.pathSep; }
         }
 
         public string PluginData
         {
-            get { return Mod + DLTD_Util_Const.pathSep + _pdLivesIn + "PluginData"; }
+            get { return Mod + DLTD_Utility_AssetManagment_Constant.pathSep + _pdLivesIn + "PluginData"; }
         }
 
         public string Packages
         {
-            get { return Mod + DLTD_Util_Const.pathSep + "Packages"; }
+            get { return Mod + DLTD_Utility_AssetManagment_Constant.pathSep + "Packages"; }
         }
 
         public KSPPaths( string modName = null, string pdl = null )
@@ -99,7 +99,7 @@ namespace DLTD.Utility
 
         public string BundleID;
         public string BundleLoc;
-        public int TTL = DLTD_Util_Const.bundleUnloadFramecount;
+        public int TTL = DLTD_Utility_AssetManagment_Constant.bundleUnloadFramecount;
 
         public string BundleLocForWWW
         {
@@ -111,9 +111,9 @@ namespace DLTD.Utility
         public BundleRecord( string loc, string b_ID = "root", BundleState initialState = BundleState.Unloaded )
         {
             BundleID = b_ID;
-            BundleLoc = loc.Replace("\\", DLTD_Util_Const.pathSep);
+            BundleLoc = loc.Replace("\\", DLTD_Utility_AssetManagment_Constant.pathSep);
             state = initialState;
-            TTL = DLTD_Util_Const.bundleUnloadFramecount;
+            TTL = DLTD_Utility_AssetManagment_Constant.bundleUnloadFramecount;
         }
     }
 
@@ -224,7 +224,7 @@ namespace DLTD.Utility
         public BundleRecord LoadModBundle( KSPPaths modPaths, string bundleFN, string bundleID, BundleStateChangeEvent bundleCB = null )
         {
  //           dbg.Print("LoadModBundle: " + modPaths.Mod + " " + bundleFN + " " + bundleID);
-            var bundleRec = new BundleRecord(modPaths.Packages + "/" + bundleFN, bundleID);
+            var bundleRec = new BundleRecord(modPaths.Packages + DLTD_Utility_AssetManagment_Constant.pathSep + bundleFN, bundleID);
             bundleRec.BundleStateChanged += bundleCB;
             return LoadModBundle(bundleRec);
         }
@@ -281,7 +281,7 @@ namespace DLTD.Utility
                     if( UnloadQueue[i].TTL == 0 )
                     {
                         UnloadQueue[i].state = BundleState.BundleReadyForUnload;
-                        UnloadQueue[i].TTL = DLTD_Util_Const.bundleUnloadFramecount;
+                        UnloadQueue[i].TTL = DLTD_Utility_AssetManagment_Constant.bundleUnloadFramecount;
                         UnloadQueue.RemoveAt(i);
                         if (UnloadQueue.Count == 0)
                             UnloadQueue.TrimExcess();

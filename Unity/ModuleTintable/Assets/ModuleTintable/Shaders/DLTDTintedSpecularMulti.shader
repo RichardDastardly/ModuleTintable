@@ -1,5 +1,6 @@
 Shader "DLTD/Tinted Specular Multi"
 {
+	// go through & replace some of these floats with fixed
 	Properties 
 	{
 		_MainTex("_MainTex (RGB spec(A)", 2D) = "white" {}
@@ -20,7 +21,9 @@ Shader "DLTD/Tinted Specular Multi"
 		_EmissiveColor("_EmissiveColor", Color) = (0,0,0,1)
 		_Emissive("_Emissive", 2D) = "white" {}
 
-		
+		[Toggle(DECAL)] _EnableDecal("Decal?", Int) = 0
+		_Decal("_Decal (RGB trans(A))", 2D) = "white" {}
+
 		_Opacity("_Opacity", Range(0,1) ) = 1
 		_RimFalloff("_RimFalloff", Range(0.01,5) ) = 0.1
 		_RimColour("_RimColour", Color) = (0,0,0,0)
@@ -41,6 +44,7 @@ Shader "DLTD/Tinted Specular Multi"
 
 		#pragma multi_compile __ BLENDMASK 
 		#pragma multi_compile __ EMISSIVE BUMPMAP
+		#pragma multi_compile __ DECAL
 
 		#pragma surface surf NormalizedBlinnPhong keepalpha
 		#pragma target 3.0
@@ -67,6 +71,13 @@ Shader "DLTD/Tinted Specular Multi"
 		float4 _TemperatureColor;
 		float4 _BurnColor;
 
+#if defined (DECAL)
+		sampler2D _Decal;
+		float2 _DecalTL; // top left corner
+		float2 _DecalBR; // bottom right corner
+		float2 _DecalXY; // scale factor: 1/size relative to main tex
+#endif
+
 #include "Tint.cginc"
 		
 		struct Input
@@ -89,6 +100,12 @@ Shader "DLTD/Tinted Specular Multi"
 			float3 normal = UnpackNormal(tex2D(_BumpMap, IN.uv_BumpMap));
 #else
 			float3 normal = float3(0,0,1);
+#endif
+
+#if defined (DECAL)
+			float decalBlend = saturate(step(IN.uv_MainTex, _DecalTL) + step(_DecalBR, IN.uv_MainTex) - 1);
+			float4 decal = tex2D(_Decal, (IN.uv_MainTex * _DecalXY));
+			color.rgb = lerp(color.rgb, decal.rgb, decalBlend * decal.a );
 #endif
 
 			half rim = 1.0 - saturate(dot (normalize(IN.viewDir), normal));

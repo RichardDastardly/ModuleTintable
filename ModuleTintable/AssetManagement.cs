@@ -1,5 +1,4 @@
-﻿using System;
-using System.IO;
+﻿using System.IO;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
@@ -7,18 +6,24 @@ using UnityEngine;
 
 namespace DLTD.Utility
 {
+    public static class DLTD_Util_Const
+    {
+        public const string pathSep = "/";
+        public const int bundleUnloadFramecount = 30;
+    }
+
     public class KSPPaths
     {
         public string Base;
         public string LocalDir
         {
-            get { return Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location).Replace("\\","/" ); }
+            get { return Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location).Replace("\\", DLTD_Util_Const.pathSep); }
         }
            
         private string _modsub;
         public string Mod
         {
-            get { return Base + "/" + "GameData" + "/" +  _modsub; }
+            get { return Base + DLTD_Util_Const.pathSep + "GameData" + DLTD_Util_Const.pathSep +  _modsub; }
             set { _modsub = value; }
         }
 
@@ -30,17 +35,17 @@ namespace DLTD.Utility
         private string _pdLivesIn = "";
         public string PluginDataIsBelow
         {
-            set { _pdLivesIn = value + Path.DirectorySeparatorChar; }
+            set { _pdLivesIn = value + DLTD_Util_Const.pathSep; }
         }
 
         public string PluginData
         {
-            get { return Mod + "/" + _pdLivesIn + "PluginData"; }
+            get { return Mod + DLTD_Util_Const.pathSep + _pdLivesIn + "PluginData"; }
         }
 
         public string Packages
         {
-            get { return Mod + "/" + "Packages"; }
+            get { return Mod + DLTD_Util_Const.pathSep + "Packages"; }
         }
 
         public KSPPaths( string modName = null, string pdl = null )
@@ -65,7 +70,7 @@ namespace DLTD.Utility
         }
     }
 
-    public enum BundleState {  Unloaded, BundleLoading, AssetLoading, AttributesLoading, Loaded }
+    public enum BundleState {  Unloaded, BundleLoading, AssetLoading, AttributesLoading, BundleWaitingForUnload, BundleReadyForUnload, Final }
     public delegate void BundleStateChangeEvent(BundleRecord b);
 
     public class BundleRecord
@@ -87,9 +92,14 @@ namespace DLTD.Utility
             }
         }
 
+        public bool Finalized
+        {
+            get { return _state == BundleState.Final; }
+        }
+
         public string BundleID;
         public string BundleLoc;
-        public int TTL = 0;
+        public int TTL = DLTD_Util_Const.bundleUnloadFramecount;
 
         public string BundleLocForWWW
         {
@@ -101,8 +111,9 @@ namespace DLTD.Utility
         public BundleRecord( string loc, string b_ID = "root", BundleState initialState = BundleState.Unloaded )
         {
             BundleID = b_ID;
-            BundleLoc = loc.Replace("\\", "/");
+            BundleLoc = loc.Replace("\\", DLTD_Util_Const.pathSep);
             state = initialState;
+            TTL = DLTD_Util_Const.bundleUnloadFramecount;
         }
     }
 
@@ -113,8 +124,12 @@ namespace DLTD.Utility
         TDebug dbg;
         // do some error checking please...
 
+        private const string attributeTag = "ASSET_ATTRIBUTE";
+        private const string attributeExt = ".atr";
+
         public Dictionary<string, AssetRecord> Assets;
         public Dictionary<string, BundleRecord> AssetsByBundleID;
+        public List<BundleRecord> UnloadQueue;
 
         public static AssetManager instance;
 
@@ -162,17 +177,23 @@ namespace DLTD.Utility
                 bundleRec.state = BundleState.AttributesLoading;
                 LoadAssetAttributes(bundleRec);
 
-                bundleRec.state = BundleState.Loaded;
+                bundleRec.state = BundleState.BundleWaitingForUnload;
 
+                UnloadQueue.Add(bundleRec);
+
+                while (bundleRec.state != BundleState.BundleReadyForUnload)
+                    yield return bundleRec;
+                dbg.Print("LoadAssetBundle: unloading bundle " + bundleRec.BundleID);
                 bundle.Unload(false);
+                bundleRec.state = BundleState.Final;
             }
         }
 
-        private string attributeTag = "ASSET_ATTRIBUTE";
+
 
         private void LoadAssetAttributes( BundleRecord bundleRec)
         {
-            var cfgFile = bundleRec.BundleLoc + ".atr";
+            var cfgFile = bundleRec.BundleLoc + attributeExt;
 
             if (!File.Exists(cfgFile))
                 return;
@@ -240,6 +261,7 @@ namespace DLTD.Utility
         {
             Assets = new Dictionary<string, AssetRecord>();
             AssetsByBundleID = new Dictionary<string, BundleRecord>();
+            UnloadQueue = new List<BundleRecord>();
 
             dbg = new TDebug("[DLTD AssetManager] ");
 
@@ -250,6 +272,25 @@ namespace DLTD.Utility
         {
             Caching.CleanCache();
             instance = this;
+        }
+
+        public void FixedUpdate()
+        {
+            if( UnloadQueue.Count > 0 )
+                for( int i = 0; i < UnloadQueue.Count; i++ )
+                    if( UnloadQueue[i].TTL == 0 )
+                    {
+                        UnloadQueue[i].state = BundleState.BundleReadyForUnload;
+                        UnloadQueue[i].TTL = DLTD_Util_Const.bundleUnloadFramecount;
+                        UnloadQueue.RemoveAt(i);
+                        if (UnloadQueue.Count == 0)
+                            UnloadQueue.TrimExcess();
+                    }
+                    else
+                    {
+                        UnloadQueue[i].TTL--;
+                    }
+           
         }
     }
 }

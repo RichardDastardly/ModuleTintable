@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
@@ -32,6 +31,7 @@ namespace DLTD.Modules.ModuleTintable
     public static class Constant // check naming later, this might cause namespace clashes
     {
         public const int UI_Slider_Max = 255;
+        public const string PaletteTag = "PALETTE";
     }
     #endregion
 
@@ -1111,13 +1111,13 @@ namespace DLTD.Modules.ModuleTintable
             UIVisible(moduleActive);
         }
 
-        private static string PaletteTag = "PALETTE";
+        
 
         public override void OnSave(ConfigNode node)
         {
             base.OnSave(node);
 
-            var paletteNode = new ConfigNode(PaletteTag);
+            var paletteNode = new ConfigNode(Constant.PaletteTag);
             Palette.Save(paletteNode);
 
             node.AddNode(paletteNode);
@@ -1129,7 +1129,7 @@ namespace DLTD.Modules.ModuleTintable
         {
             base.OnLoad(node);
 
-            var paletteNode = node.GetNode(PaletteTag);
+            var paletteNode = node.GetNode(Constant.PaletteTag);
             if (paletteNode != null)
                 Palette.Load(paletteNode);
 

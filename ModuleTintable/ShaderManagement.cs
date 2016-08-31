@@ -1,8 +1,7 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using DLTD.Modules.ModuleTintable;
+using DLTD.Modules.ModuleTintable; // this is just for palettes, perhaps bring palette into here
 using DLTD.System;
 
 namespace DLTD.Utility
@@ -143,7 +142,7 @@ namespace DLTD.Utility
                     var paletteEntry = tintPalette[i];
                     foreach (var shaderParams in ParameterMap)
                     {                                                                                                                                                                                                                                                                                                                                 
-                       dbg.Print("Palette["+i+"] " + shaderParams.Key + "->" + shaderParams.Value + ": "+paletteEntry.GetForShader(shaderParams.Key));
+ //                      dbg.Print("Palette["+i+"] " + shaderParams.Key + "->" + shaderParams.Value + ": "+paletteEntry.GetForShader(shaderParams.Key));
                         var f = paletteEntry.GetForShader(shaderParams.Key);
                         if(f != null)
                             managedMat.SetFloat(shaderParams.Value, (float)f);
@@ -331,7 +330,7 @@ namespace DLTD.Utility
 
         private void ShaderBundleStateChange( BundleRecord b )
         {
-            if (b.state != BundleState.Loaded)
+            if (!b.Finalized)
                 return;
 
             var bundleContents = AssetMgr.GetAssetsOfType<Shader>(b.BundleID);

@@ -303,7 +303,7 @@ namespace DLTD.Utility
 
 
     [KSPAddon(KSPAddon.Startup.MainMenu, true)]
-    public class ShaderAssetManager : MonoBehaviour
+    public class ShaderAssetManager : MonoBehaviour, IAssetBundleClient
     {
         private List<ShaderRecord> Shaders;
         private List<string> ManagedShaders;
@@ -324,7 +324,7 @@ namespace DLTD.Utility
             ManagedShaders = new List<string>();
         }
 
-        private void ShaderBundleStateChange( BundleRecord b )
+        public void OnBundleStateChange( BundleRecord b )
         {
             if (!b.Finalized)
                 return;
@@ -354,7 +354,7 @@ namespace DLTD.Utility
 
         private void LoadShaders()
         {
-            AssetMgr.LoadModBundle(ModuleTintablePaths, ShaderBundle, BundleID, ShaderBundleStateChange );
+            AssetMgr.LoadModBundle(ModuleTintablePaths, ShaderBundle, BundleID, this );
         }
 
         private int GetShaderIndexFromString( string shaderName )

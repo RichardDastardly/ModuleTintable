@@ -747,7 +747,7 @@ namespace DLTD.Modules.ModuleTintable
                 {
                     //                   if (_entity.type == SectionEntityType.Field)
                     //                        MemberValues[_entity.name] = (float)Fields.GetValue(_entity.name);
-                    var v = getter(_entity);
+                    var v = (getter != null) ? getter(_entity) : null;
                     if (v != null)
                     {
                         MemberValues[_entity.name] = (float)v;
@@ -879,7 +879,7 @@ namespace DLTD.Modules.ModuleTintable
             }
 
             var Materials = new List<Material>();
-
+            
             // messy messy, tidy
 
             MeshRenderer[] r = part.FindModelComponents<MeshRenderer>();

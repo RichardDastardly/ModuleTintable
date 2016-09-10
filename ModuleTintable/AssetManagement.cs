@@ -71,19 +71,32 @@ namespace DLTD.Utility
     }
 
     public enum BundleState {  Unloaded, BundleLoading, AssetLoading, AttributesLoading, BundleWaitingForUnload, BundleReadyForUnload, Final }
-    public delegate void BundleStateChangeEvent(BundleRecord b);
+
+    public interface IAssetBundleClient
+    {
+        void OnBundleStateChange(BundleRecord b);
+    }
+
+ //   public delegate void BundleStateChangeEvent(BundleRecord b);
 
     public class BundleRecord
     {
-        public BundleStateChangeEvent BundleStateChanged;
+        //       public BundleStateChangeEvent BundleStateChanged;
+        private List<IAssetBundleClient> _clients;
+        public List<IAssetBundleClient> Clients
+        {
+            get { return _clients; }
+        }
 
         public virtual void OnStateChange()
         {
-            BundleStateChanged?.Invoke(this);
+            for (int i = 0; i < _clients.Count; i++)
+                _clients[i].OnBundleStateChange(this);
+//            BundleStateChanged?.Invoke(this);
         }
 
         private BundleState _state;
-        public BundleState state
+        public BundleState State
         {
             get { return _state; }
             set {
@@ -112,7 +125,8 @@ namespace DLTD.Utility
         {
             BundleID = b_ID;
             BundleLoc = loc.Replace("\\", DLTD_Utility_AssetManagment_Constant.pathSep);
-            state = initialState;
+            _clients = new List<IAssetBundleClient>();
+            State = initialState;
             TTL = DLTD_Utility_AssetManagment_Constant.bundleUnloadFramecount;
         }
     }
@@ -141,7 +155,7 @@ namespace DLTD.Utility
             //            var bundleLoadRequest = AssetBundle.LoadFromFileAsync(b.BundleLoc);
             //            var bundle = AssetBundle.CreateFromFile(b.BundleLoc);
 
-            bundleRec.state = BundleState.BundleLoading;
+            bundleRec.State = BundleState.BundleLoading;
             using (WWW www = new WWW(bundleRec.BundleLocForWWW))
             {
                 yield return www;
@@ -155,7 +169,7 @@ namespace DLTD.Utility
   //                         dbg.Print("LoadAssetBundle: bundle " + bundleRec.BundleID + " loaded from disk, preparing to load assets.");
 
                 var bundle = www.assetBundle;
-                bundleRec.state = BundleState.AssetLoading;
+                bundleRec.State = BundleState.AssetLoading;
                 var assetsLoadRequest = bundle.LoadAllAssetsAsync();
 
                 yield return assetsLoadRequest;
@@ -174,19 +188,19 @@ namespace DLTD.Utility
                     Assets[assetName] = assetRec;
                 }
 
-                bundleRec.state = BundleState.AttributesLoading;
+                bundleRec.State = BundleState.AttributesLoading;
                 LoadAssetAttributes(bundleRec);
 
-                bundleRec.state = BundleState.BundleWaitingForUnload;
+                bundleRec.State = BundleState.BundleWaitingForUnload;
 
                 UnloadQueue.Add(bundleRec);
 
-                while (bundleRec.state != BundleState.BundleReadyForUnload)
+                while (bundleRec.State != BundleState.BundleReadyForUnload)
                     yield return bundleRec;
 
                 dbg.Print("LoadAssetBundle: unloading bundle " + bundleRec.BundleID);
                 bundle.Unload(false);
-                bundleRec.state = BundleState.Final;
+                bundleRec.State = BundleState.Final;
             }
         }
 
@@ -222,11 +236,12 @@ namespace DLTD.Utility
             return bundleRec;
         }
 
-        public BundleRecord LoadModBundle( KSPPaths modPaths, string bundleFN, string bundleID, BundleStateChangeEvent bundleCB = null )
+        public BundleRecord LoadModBundle( KSPPaths modPaths, string bundleFN, string bundleID, IAssetBundleClient client = null )
         {
  //           dbg.Print("LoadModBundle: " + modPaths.Mod + " " + bundleFN + " " + bundleID);
             var bundleRec = new BundleRecord(modPaths.Packages + DLTD_Utility_AssetManagment_Constant.pathSep + bundleFN, bundleID);
-            bundleRec.BundleStateChanged += bundleCB;
+            //            bundleRec.BundleStateChanged += bundleCB;
+            bundleRec.Clients.Add(client);
             return LoadModBundle(bundleRec);
         }
 
@@ -281,7 +296,7 @@ namespace DLTD.Utility
                 for( int i = 0; i < UnloadQueue.Count; i++ )
                     if( UnloadQueue[i].TTL == 0 )
                     {
-                        UnloadQueue[i].state = BundleState.BundleReadyForUnload;
+                        UnloadQueue[i].State = BundleState.BundleReadyForUnload;
                         UnloadQueue[i].TTL = DLTD_Utility_AssetManagment_Constant.bundleUnloadFramecount;
                         UnloadQueue.RemoveAt(i);
                         if (UnloadQueue.Count == 0)

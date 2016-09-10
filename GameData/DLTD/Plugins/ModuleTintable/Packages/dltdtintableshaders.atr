@@ -9,6 +9,7 @@ ASSET_ATTRIBUTE
 	name = DLTD/Tinted Specular Multi
 	testForKeyword = BumpMap
 	testForKeyword = Emissive
+	testForKeyword = Decal
 	replace = KSP/Specular
 	replace = KSP/Bumped Specular
 	replace = KSP/Emissive/Specular

@@ -7,6 +7,36 @@ using UnityEngine;
 
 namespace DLTD.System
 {
+    public static class VesselMgt
+    {
+        // inspired by MechJeb code, need to check a few things...
+        public static List<T> GetParts<T>( this Vessel vessel ) where T : Part
+        {
+            if (HighLogic.LoadedSceneIsEditor) return EditorLogic.SortedShipList.OfType<T>().ToList();
+            if (vessel == null)
+                return new List<T>();
+            return vessel.Parts.OfType<T>().ToList();
+        }
+
+        public static List<T> GetModules<T>( this Vessel vessel ) where T : PartModule
+        {
+            if (vessel == null)
+                return new List<T>();
+
+            var parts = vessel.Parts;
+            var res = new List<T>();
+
+            if (HighLogic.LoadedSceneIsEditor)
+                parts = EditorLogic.SortedShipList;
+
+            for( var i = 0; i < parts.Count; i++ )
+            {
+                res.AddRange(parts[i].Modules.OfType<T>());
+            }
+
+            return res;
+        }
+    }
 
     [Serializable, DebuggerDisplay("Count = {Count}")]
     public class SerializableDictionary<TKey, TValue> : IDictionary<TKey, TValue>

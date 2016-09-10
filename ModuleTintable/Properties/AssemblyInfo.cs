@@ -5,11 +5,11 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("ModuleTinter")]
+[assembly: AssemblyTitle("ModuleTintable")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("Disaster Ltd")]
-[assembly: AssemblyProduct("ModuleTinter")]
+[assembly: AssemblyProduct("ModuleTintable")]
 [assembly: AssemblyCopyright("Copyright © Simon Hall 2016")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]

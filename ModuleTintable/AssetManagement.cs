@@ -71,28 +71,20 @@ namespace DLTD.Utility
     }
 
     public enum BundleState {  Unloaded, BundleLoading, AssetLoading, AttributesLoading, BundleWaitingForUnload, BundleReadyForUnload, Final }
+    public delegate void BundleRecordStateChange(BundleRecord b);
 
+    // revert back to delegate? use delegate for OnStateChange and OnFinalize, don't have to subscribe to both
     public interface IAssetBundleClient
     {
         void OnBundleStateChange(BundleRecord b);
     }
 
- //   public delegate void BundleStateChangeEvent(BundleRecord b);
-
     public class BundleRecord
     {
-        //       public BundleStateChangeEvent BundleStateChanged;
         private List<IAssetBundleClient> _clients;
         public List<IAssetBundleClient> Clients
         {
             get { return _clients; }
-        }
-
-        public virtual void OnStateChange()
-        {
-            for (int i = 0; i < _clients.Count; i++)
-                _clients[i].OnBundleStateChange(this);
-//            BundleStateChanged?.Invoke(this);
         }
 
         private BundleState _state;
@@ -108,6 +100,20 @@ namespace DLTD.Utility
         public bool Finalized
         {
             get { return _state == BundleState.Final; }
+        }
+
+        public BundleRecordStateChange EveryStateChange;
+        public BundleRecordStateChange OnFinalize;
+
+        protected virtual void OnStateChange()
+        {
+            // Can't decide, have them both for now
+             for (int i = 0; i < _clients.Count; i++)
+                _clients[i].OnBundleStateChange(this);
+
+            EveryStateChange?.Invoke(this);
+            if (Finalized)
+                OnFinalize?.Invoke(this);
         }
 
         public string BundleID;
@@ -229,6 +235,11 @@ namespace DLTD.Utility
 
         }
 
+        public static BundleRecord CreateModBundle ( KSPPaths modPaths, string bundleFN, string bundleID )
+        {
+            return new BundleRecord(modPaths.Packages + DLTD_Utility_AssetManagment_Constant.pathSep + bundleFN, bundleID);
+        }
+
         public BundleRecord LoadModBundle( BundleRecord bundleRec )
         {
             StartCoroutine(LoadAssetBundle(bundleRec));
@@ -240,8 +251,16 @@ namespace DLTD.Utility
         {
  //           dbg.Print("LoadModBundle: " + modPaths.Mod + " " + bundleFN + " " + bundleID);
             var bundleRec = new BundleRecord(modPaths.Packages + DLTD_Utility_AssetManagment_Constant.pathSep + bundleFN, bundleID);
-            //            bundleRec.BundleStateChanged += bundleCB;
             bundleRec.Clients.Add(client);
+            return LoadModBundle(bundleRec);
+        }
+
+        public BundleRecord LoadModBundle(KSPPaths modPaths, string bundleFN, string bundleID, BundleRecordStateChange handler = null )
+        {
+            //           dbg.Print("LoadModBundle: " + modPaths.Mod + " " + bundleFN + " " + bundleID);
+            var bundleRec = new BundleRecord(modPaths.Packages + DLTD_Utility_AssetManagment_Constant.pathSep + bundleFN, bundleID);
+            if (handler != null )
+                bundleRec.EveryStateChange += handler;
             return LoadModBundle(bundleRec);
         }
 

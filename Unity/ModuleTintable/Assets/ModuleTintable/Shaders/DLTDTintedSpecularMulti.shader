@@ -45,6 +45,7 @@ Shader "DLTD/Tinted Specular Multi"
 		#pragma multi_compile __ BLENDMASK 
 		#pragma multi_compile __ EMISSIVE BUMPMAP
 		#pragma multi_compile __ DECAL
+		#pragma multi_compile __ GRUNGE
 
 		#pragma surface surf NormalizedBlinnPhong keepalpha
 		#pragma target 3.0
@@ -63,6 +64,11 @@ Shader "DLTD/Tinted Specular Multi"
 #endif
 #if defined (BUMPMAP)
 		sampler2D _BumpMap;
+#endif
+#if defined (GRUNGE)
+		sampler2D _GrungeMap;
+		float4 _GrungeMix;
+		float GrungeCol[3];
 #endif
 
 		float _Opacity;
@@ -106,6 +112,11 @@ Shader "DLTD/Tinted Specular Multi"
 			float decalBlend = saturate(step(IN.uv_MainTex, _DecalTL) + step(_DecalBR, IN.uv_MainTex) - 1);
 			float4 decal = tex2D(_Decal, (IN.uv_MainTex * _DecalXY));
 			color.rgb = lerp(color.rgb, decal.rgb, decalBlend * decal.a );
+#endif
+
+#if defined (GRUNGE)
+			float4 grunge = tex2D(_GrungeMap, (IN.uv_MainTex)) * _GrungeMix;
+			// now, how to blend dirt.
 #endif
 
 			half rim = 1.0 - saturate(dot (normalize(IN.viewDir), normal));

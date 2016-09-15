@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using UnityEngine;
 
-namespace DLTD.System
+namespace DLTD.Utility
 {
     public static class VesselMgt
     {

@@ -27,8 +27,8 @@
 		SubShader{
 			Tags { "RenderType" = "Opaque" }
 			ZWrite On
-				ZTest LEqual
-				Blend SrcAlpha OneMinusSrcAlpha
+			ZTest LEqual
+			Blend SrcAlpha OneMinusSrcAlpha
 
 				CGPROGRAM
 

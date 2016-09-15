@@ -1,11 +1,364 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using DLTD.Modules.ModuleTintable; // this is just for palettes, perhaps bring palette into here
-using DLTD.System;
 
 namespace DLTD.Utility
 {
+    /// <summary>
+    /// 
+    /// DLTD_U_SM_Constant : Constants for ShaderManagement in DLTD.Utility namespace
+    /// </summary>
+    public static class DLTD_U_SM_Constant
+    {
+        public const string PaletteTag = "PALETTE";
+        public const string PaletteEntryTag = "PALETTE_ENTRY";
+    }
+
+    #region PaletteEntry
+    public class PaletteEntry : IConfigNode
+    {
+        protected Dictionary<string, float> _Settings = new Dictionary<string, float>();
+        public float OutputDivisor = 255;
+        
+        public Dictionary<string, float> Values
+        {
+            get
+            {
+                return new Dictionary<string, float>(_Settings);
+            }
+            set
+            {
+                _Settings = new Dictionary<string, float>(value);
+            }
+        }
+
+        public float this[string key]
+        {
+            get { try { return _Settings[key]; } catch (KeyNotFoundException) { return 0; } } // yeah, should probably not return defaults
+            set { _Settings[key] = value; }
+        }
+
+        public Color Colour
+        {
+            get { return HSVtoRGB(Output("tintHue"), Output("tintSaturation"), Output("tintValue")); }
+        }
+
+        private List<bool> SectionFlags = new List<bool>();
+
+        public PaletteEntry() { }
+        public PaletteEntry( float Divisor )
+        {
+            OutputDivisor = Divisor;
+        }
+
+        public PaletteEntry(PaletteEntry clone)
+        {
+            Values = clone.Values;
+            OutputDivisor = clone.OutputDivisor;
+        }
+        
+        public float? Get(string k)
+        {
+            try
+            {
+                return _Settings[k];
+            }
+            catch (KeyNotFoundException)
+            {
+                return null;
+            }
+        }
+
+        public float Output(string k)
+        {
+            return Mathf.Clamp01(this[k] / OutputDivisor);
+        }
+
+        public void Set(string k, float v)
+        {
+            _Settings[k] = v;
+        }
+
+        public void SetSection(int section, bool flag)
+        {
+            while (section < SectionFlags.Count)
+                SectionFlags.Add(true);
+            SectionFlags[section] = flag;
+        }
+
+        // Confignode read/write
+        public void Load(ConfigNode node)
+        {
+            _Settings.Clear();
+
+            foreach (ConfigNode.Value v in node.values)
+                _Settings.Add(v.name, float.Parse(v.value));
+
+        }
+
+        public void Save(ConfigNode node)
+        {
+            var k = new List<string>(_Settings.Keys);
+
+            for (int i = 0; i < k.Count; i++)
+                node.AddValue(k[i], _Settings[k[i]]);
+        }
+
+        // temp back compatible
+        public void CloneIntoColourSet(PaletteEntry t)
+        {
+            Values = t.Values;
+        }
+
+        public void CloneFromColourSet(PaletteEntry t)
+        {
+            t.Values = Values;
+        }
+
+        // taken from the shader
+
+        private const float Epsilon = 1e-10f;
+
+        public static Color HSVtoRGB2(float H = 0f, float S = 0f, float V = 0f)
+        {
+            // HUEtoRGB section
+            var R = Mathf.Abs(H * 6 - 3) - 1;
+            var G = 2 - Mathf.Abs(H * 6 - 2);
+            var B = 2 - Mathf.Abs(H * 6 - 4);
+
+            return new Color(
+                (R - 1) * (S + 1) * V,
+                (G - 1) * (S + 1) * V,
+                (B - 1) * (S + 1) * V
+                );
+        }
+
+        public static Color HSVtoRGB(float H, float S, float V)
+        {
+            float R, G, B;
+
+            if (V <= 0)
+            {
+                R = G = B = 0;
+            }
+            else if (S <= 0)
+            {
+                R = G = B = V;
+            }
+            else
+            {
+                float hf = H * 6.0f;
+                int i = (int)Mathf.Floor(hf);
+                float f = hf - i;
+                float pv = V * (1 - S);
+                float qv = V * (1 - S * f);
+                float tv = V * (1 - S * (1 - f));
+                switch (i)
+                {
+                    // Red is the dominant color
+                    case 0:
+                        R = V;
+                        G = tv;
+                        B = pv;
+                        break;
+                    // Green is the dominant color
+                    case 1:
+                        R = qv;
+                        G = V;
+                        B = pv;
+                        break;
+                    case 2:
+                        R = pv;
+                        G = V;
+                        B = tv;
+                        break;
+                    // Blue is the dominant color
+                    case 3:
+                        R = pv;
+                        G = qv;
+                        B = V;
+                        break;
+                    case 4:
+                        R = tv;
+                        G = pv;
+                        B = V;
+                        break;
+                    // Red is the dominant color
+                    case 5:
+                        R = V;
+                        G = pv;
+                        B = qv;
+                        break;
+                    // Just in case we overshoot on our math by a little, we put these here. Since its a switch it won't slow us down at all to put these here.
+                    case 6:
+                        R = V;
+                        G = tv;
+                        B = pv;
+                        break;
+                    case -1:
+                        R = V;
+                        G = pv;
+                        B = qv;
+                        break;
+                    // The color is not defined, we should throw an error.
+                    default:
+                        //LFATAL("i Value error in Pixel conversion, Value is %d", i);
+                        R = G = B = V; // Just pretend its black/white
+                        break;
+                }
+            }
+
+            return new Color(
+                Mathf.Clamp01(R),
+                Mathf.Clamp01(G),
+                Mathf.Clamp01(B));
+        }
+
+    }
+    #endregion
+
+    #region Palette
+    public delegate void PaletteActiveEntryEvent(Palette p);
+
+    public class Palette : IConfigNode
+    {
+        private List<PaletteEntry> _pStore;
+        public PaletteEntry this[int index]
+        {
+            get { return _pStore[Mathf.Clamp(index, 0, _pStore.Count - 1)]; }
+            set { _pStore[index] = value; }
+        }
+
+        public float DefaultOutputDivisor = 255;
+
+        public PaletteActiveEntryEvent PaletteActiveEntryChange;
+
+        public virtual void OnPaletteEntryChange()
+        {
+            PaletteActiveEntryChange?.Invoke(this);
+        }
+
+        public int Count
+        {
+            get { return _pStore.Count; }
+        }
+
+        public int activeEntry = 0;
+
+        //
+        private int _EntryCount = 1;
+        public int Length
+        {
+            get { return _EntryCount; }
+        }
+
+        public int LastIndex
+        {
+            get { return _EntryCount - 1; }
+        }
+
+        public Palette()
+        {
+            Initialise();
+            Add(new PaletteEntry(DefaultOutputDivisor));
+        }
+
+        public Palette(Palette p)
+        {
+            Initialise();
+            DefaultOutputDivisor = p.DefaultOutputDivisor;
+
+            for (int i = 0; i < p.Count; i++)
+                Add(new PaletteEntry(p[i]));
+        }
+
+        public Palette(Palette p, int cols) : this ( p )
+        {
+            _EntryCount = cols;
+        }
+
+        private void Initialise()
+        {
+            if (_pStore == null)
+                _pStore = new List<PaletteEntry>();
+            _pStore.Clear();
+            _EntryCount = 0;
+        }
+
+        public PaletteEntry Next()
+        {
+            if (activeEntry < LastIndex)
+            {
+                activeEntry++;
+
+                if (activeEntry >= _pStore.Count || _pStore[activeEntry] == null)
+                    _pStore.Add(new PaletteEntry(DefaultOutputDivisor));
+
+                OnPaletteEntryChange();
+            }
+            return _pStore[activeEntry];
+        }
+
+        public PaletteEntry Previous()
+        {
+            if (activeEntry > 0)
+            {
+                activeEntry--;
+                OnPaletteEntryChange();
+            }
+            return _pStore[activeEntry];
+        }
+
+        public PaletteEntry Active
+        {
+            get { return _pStore[activeEntry]; }
+        }
+
+        public void Add(PaletteEntry p)
+        {
+            _pStore.Add(p);
+            _EntryCount++;
+        }
+
+        public void Limit(int c) // number of entries, not final array position
+        {
+            //          _EntryCount = c > 0 ? c - 1 : 0;
+            _EntryCount = c;
+        }
+
+        public void Clear()
+        {
+            _pStore.Clear();
+            Initialise();
+        }
+
+        public void Load(ConfigNode node)
+        {
+            Clear();
+            Initialise();
+            // Node is called PALETTE - assume this is passed the node, not the entire config 
+            // entries will be PALETTE_ENTRY sub nodes
+            foreach (ConfigNode e in node.GetNodes(DLTD_U_SM_Constant.PaletteEntryTag)) // I hope GetNodes() is ordered...
+            {
+                var p_e = new PaletteEntry(DefaultOutputDivisor);
+                p_e.Load(e);
+                Add(p_e);
+            }
+        }
+
+        public void Save(ConfigNode node)
+        {
+            for (int i = 0; i < _pStore.Count; i++)
+            {
+                var n = new ConfigNode(DLTD_U_SM_Constant.PaletteEntryTag);
+                _pStore[i].Save(n);
+                node.AddNode(n);
+            }
+        }
+    }
+    #endregion
+
     #region Asset Management
     public enum ShaderOverlayMask { None, Explicit, UseDefaultTexture };
 
@@ -138,8 +491,8 @@ namespace DLTD.Utility
                     var paletteEntry = tintPalette[i];
                     foreach (var shaderParams in ParameterMap)
                     {                                                                                                                                                                                                                                                                                                                                 
- //                      dbg.Print("Palette["+i+"] " + shaderParams.Key + "->" + shaderParams.Value + ": "+paletteEntry.GetForShader(shaderParams.Key));
-                        var f = paletteEntry.GetForShader(shaderParams.Key);
+ //                      dbg.Print("Palette["+i+"] " + shaderParams.Key + "->" + shaderParams.Value + ": "+paletteEntry.Output(shaderParams.Key));
+                        var f = paletteEntry.Output(shaderParams.Key);
                         if(f != null)
                             managedMat.SetFloat(shaderParams.Value, (float)f);
                     }
@@ -301,59 +654,60 @@ namespace DLTD.Utility
 
    }
 
-
-    [KSPAddon(KSPAddon.Startup.MainMenu, true)]
+    /// <summary>
+    /// Singleton manager of shader assets and management classes
+    /// </summary>
+    [KSPAddon(KSPAddon.Startup.Instantly, true)]
     public class ShaderAssetManager : MonoBehaviour
     {
         private List<ShaderRecord> Shaders;
         private List<string> ManagedShaders;
-        private KSPPaths ModuleTintablePaths;
 
-        //        private readonly string ShaderBundle = "DLTDTintableShaders";
-        private readonly string ShaderBundle = "dltdtintableshaders"; // unfortunately unity seems to want to save bundles in lowercase
-        private readonly string BundleID = "ModuleTintable";
-
-        private AssetManager AssetMgr;
+        private static AssetManager AssetMgr;
         public static ShaderAssetManager instance;
         public static bool shadersLoaded = false;
 
         public void Awake()
         {
             Shaders = new List<ShaderRecord>();
-            ModuleTintablePaths = new KSPPaths("DLTD/Plugins/ModuleTintable");
             ManagedShaders = new List<string>();
         }
 
-        public void OnBundleStateChange( BundleRecord b )
+        private static void ParseAssetQueryResult( Dictionary<string,AssetRecord> assetResults )
         {
-            var bundleContents = AssetMgr.GetAssetsOfType<Shader>(b.BundleID);
-
-            foreach (AssetRecord assetRec in bundleContents.Values)
+            foreach ( var assetRec in assetResults )
             {
-                //dbg.Print("ShaderAssetManager got handed " + assetRec.Asset.name + " from " + assetRec.BundleID);
-                if (assetRec.Attributes != null)
+                var idx = instance.GetShaderIndexFromString(assetRec.Value.Asset.name);
+                if ( idx == -1 )
                 {
-                    var newShaderRec = new ShaderRecord(assetRec.Asset as Shader);
-                    ConfigNode.LoadObjectFromConfig(newShaderRec, assetRec.Attributes);
-                    newShaderRec.Load(assetRec.Attributes);
-                    Shaders.Add(newShaderRec);
+                    var newShaderRec = new ShaderRecord(assetRec.Value.Asset as Shader);
+                    if ( assetRec.Value.Attributes != null )
+                    {
+                        ConfigNode.LoadObjectFromConfig(newShaderRec, assetRec.Value.Attributes);
+                        newShaderRec.Load(assetRec.Value.Attributes);
+                        instance.Shaders.Add(newShaderRec);
 
-                    if (ManagedShaders == null)
-                        ManagedShaders = new List<string>();
-                    ManagedShaders.Add(newShaderRec.Shader.name);
-
-                    //dbg.Print("ShaderAssetManager added " + newShaderRec.Shader.name);
-                    newShaderRec._dumpToLog();
+                        instance.ManagedShaders.Add(newShaderRec.Shader.name);
+                        newShaderRec._dumpToLog();
+                    }
                 }
             }
+            
+        }
+
+        public static void OnBundleStateChange( BundleRecord b )
+        {
+            var bundleContents = AssetMgr.GetAssetsOfType<Shader>(b.BundleID);
+            ParseAssetQueryResult(bundleContents);
+
             shadersLoaded = true;
         }
 
-        private void LoadShaders()
+        public static void LoadShaders( KSPPaths bundlePath, string bundleFN, string bundleID)
         {
-            var b = AssetManager.CreateModBundle(ModuleTintablePaths, ShaderBundle, BundleID);
+            var b = AssetManager.CreateModBundle(bundlePath, bundleFN, bundleID);
             b.OnFinalize += OnBundleStateChange;
-            AssetMgr.LoadModBundle( b );
+            AssetMgr.LoadModBundle(b);
         }
 
         private int GetShaderIndexFromString( string shaderName )
@@ -394,13 +748,21 @@ namespace DLTD.Utility
             return ManagedShaders.Contains(shaderName);
         }
 
+
+        private static IEnumerator FetchAllLoadedShaders()
+        {
+            while (HighLogic.LoadedScene == GameScenes.LOADING)
+                yield return HighLogic.LoadedScene;
+            // grab all shader objects from assetmgr
+            ParseAssetQueryResult(AssetMgr.GetAssetsOfType<Shader>());
+        }
+
         public void Start()
         {
             AssetMgr = AssetManager.instance;
             instance = this;
 
-            LoadShaders();
-
+            StartCoroutine(FetchAllLoadedShaders());
         }
     }
 #endregion

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
@@ -31,367 +32,41 @@ namespace DLTD.Modules.ModuleTintable
     public static class Constant // Module only namespace... thankfully. Lack of global #define or even global constants is really irritating sometimes
     {
         public const int UI_Slider_Max = 255;
-        public const string PaletteTag = "PALETTE";
-        public const string PaletteEntryTag = "PALETTE_ENTRY";
+        public const string PaletteTag = DLTD_U_SM_Constant.PaletteTag;
     }
     #endregion
 
-    #region PaletteEntry
-    public class PaletteEntry : IConfigNode
+    [KSPAddon(KSPAddon.Startup.Instantly, true)]
+    public class ModuleTintableShaderPreloader : MonoBehaviour
     {
-        protected Dictionary<string, float> _Settings = new Dictionary<string, float>();
+        private KSPPaths ModuleTintablePaths;
 
-        public Dictionary<string, float> Values
+        //        private readonly string ShaderBundle = "DLTDTintableShaders";
+        private readonly string ShaderBundle = "dltdtintableshaders"; // unfortunately unity seems to want to save bundles in lowercase
+        private readonly string BundleID = "ModuleTintable";
+
+        public void Awake()
         {
-            get
-            {
-                return new Dictionary<string, float>(_Settings);
-            }
-            set
-            {
-                _Settings = new Dictionary<string, float>(value);
-            }
+            ModuleTintablePaths = new KSPPaths(BundleID);
         }
 
-        public float this[string key]
+        public IEnumerator PreloadShaders()
         {
-            get { try { return _Settings[key]; } catch (KeyNotFoundException) { return 0; } } // yeah, should probably not return defaults
-            set { _Settings[key] = value; }
+            while (ShaderAssetManager.instance == null)
+                yield return null;
+            ShaderAssetManager.LoadShaders(ModuleTintablePaths, ShaderBundle, BundleID);
         }
 
-        public Color Colour
+        public void Start()
         {
-            get { return HSVtoRGB(_Settings["tintHue"], _Settings["tintSaturation"], _Settings["tintValue"]); }
+            StartCoroutine(PreloadShaders());
         }
 
-        private List<bool> SectionFlags = new List<bool>();
-
-        public PaletteEntry() { }
-
-        public PaletteEntry(PaletteEntry clone)
+        public void OnDestroy()
         {
-            Values = clone.Values;
-        }
-
-        public float? Get(string k)
-        {
-            try
-            {
-                return _Settings[k];
-            }
-            catch (KeyNotFoundException)
-            {
-                return null;
-            }
-        }
-
-        public float? GetForShader(string k)
-        {
-            try
-            {
-                return Mathf.Clamp01(_Settings[k] / Constant.UI_Slider_Max);
-            }
-            catch(KeyNotFoundException)
-            {
-                return null;
-            }
-        }
-
-        public void Set(string k, float v)
-        {
-            _Settings[k] = v;
-        }
-
-        public void SetSection( int section, bool flag )
-        {
-            while (section < SectionFlags.Count)
-                SectionFlags.Add(true);
-            SectionFlags[section] = flag;
-        }
-
-        // Confignode read/write
-        public void Load(ConfigNode node )
-        {
-            _Settings.Clear();
-
-            foreach (ConfigNode.Value v in node.values)
-                _Settings.Add(v.name, float.Parse(v.value));
-            
-        }
-
-        public void Save(ConfigNode node )
-        {
-            var k = new List<string>(_Settings.Keys);
-
-            for (int i = 0; i < k.Count; i++)
-                node.AddValue(k[i], _Settings[k[i]]);
-        }
-
-        // temp back compatible
-        public void CloneIntoColourSet( PaletteEntry t)
-        {
-            Values = t.Values;
-        }
-
-        public void CloneFromColourSet( PaletteEntry t)
-        {
-            t.Values = Values;
-        }
-
-        // taken from the shader
-
-        private const float Epsilon = 1e-10f;
-
-        public static Color HSVtoRGB2( float H = 0f, float S = 0f, float V = 0f)
-        {
-            H = H / Constant.UI_Slider_Max;
-            S = S / Constant.UI_Slider_Max;
-            V = V / Constant.UI_Slider_Max;
-
-            // HUEtoRGB section
-            var R = Mathf.Abs(H * 6 - 3) - 1;
-            var G = 2 - Mathf.Abs(H * 6 - 2);
-            var B = 2 - Mathf.Abs(H * 6 - 4);
-
-            return new Color(
-                ( R - 1 ) * (S + 1 ) * V,
-                ( G - 1) * (S + 1) * V,
-                ( B - 1) * (S + 1) * V
-                );
-        }
-
-        public static Color HSVtoRGB(float H, float S, float V)
-        {
-            float R, G, B;
-            H = H / Constant.UI_Slider_Max;
-            S = S / Constant.UI_Slider_Max;
-            V = V / Constant.UI_Slider_Max;
-
-
-            if (V <= 0)
-            {
-                R = G = B = 0;
-            }
-            else if (S <= 0)
-            {
-                R = G = B = V;
-            }
-            else
-            {
-                float hf = H * 6.0f;
-                int i = (int)Mathf.Floor(hf);
-                float f = hf - i;
-                float pv = V * (1 - S);
-                float qv = V * (1 - S * f);
-                float tv = V * (1 - S * (1 - f));
-                switch (i)
-                {
-                    // Red is the dominant color
-                    case 0:
-                        R = V;
-                        G = tv;
-                        B = pv;
-                        break;
-                    // Green is the dominant color
-                    case 1:
-                        R = qv;
-                        G = V;
-                        B = pv;
-                        break;
-                    case 2:
-                        R = pv;
-                        G = V;
-                        B = tv;
-                        break;
-                    // Blue is the dominant color
-                    case 3:
-                        R = pv;
-                        G = qv;
-                        B = V;
-                        break;
-                    case 4:
-                        R = tv;
-                        G = pv;
-                        B = V;
-                        break;
-                    // Red is the dominant color
-                    case 5:
-                        R = V;
-                        G = pv;
-                        B = qv;
-                        break;
-                    // Just in case we overshoot on our math by a little, we put these here. Since its a switch it won't slow us down at all to put these here.
-                    case 6:
-                        R = V;
-                        G = tv;
-                        B = pv;
-                        break;
-                    case -1:
-                        R = V;
-                        G = pv;
-                        B = qv;
-                        break;
-                    // The color is not defined, we should throw an error.
-                    default:
-                        //LFATAL("i Value error in Pixel conversion, Value is %d", i);
-                        R = G = B = V; // Just pretend its black/white
-                        break;
-                }
-            }
-
-            return new Color(
-                Mathf.Clamp01(R),
-                Mathf.Clamp01(G),
-                Mathf.Clamp01(B));
-        }
-
-    }
-    #endregion
-
-    #region Palette
-    public delegate void PaletteActiveEntryEvent( Palette p );
-
-    public class Palette : IConfigNode
-    {
-
-        private List<PaletteEntry> _pStore;
-        public PaletteEntry this[int index]
-        {
-            get { return _pStore[Mathf.Clamp(index, 0, _pStore.Count-1)]; }
-            set { _pStore[index] = value; }
-        }
-
-        public PaletteActiveEntryEvent PaletteActiveEntryChange;
-
-        public virtual void OnPaletteEntryChange()
-        {
-            PaletteActiveEntryChange?.Invoke(this);
-        }
-
-        public int Count
-        {
-            get { return _pStore.Count; }
-        }
-
-        public int activeEntry = 0;
-
-        //
-        private int _EntryCount = 1;
-        public int Length
-        {
-            get { return _EntryCount; }
-        }
-
-        public int LastIndex
-        {
-            get { return _EntryCount - 1; }
-        }
-
-        public Palette()
-        {
-            Initialise();
-            Add(new PaletteEntry());
-        }
-
-        public Palette( Palette p )
-        {
-            Clone( p );
-        }
-
-        public Palette( Palette p, int cols )
-        {
-            Clone(p);
-            _EntryCount = cols;
-        }
-
-        public void Clone( Palette p )
-        {
-            Initialise();
-
-            for (int i = 0; i < p.Count; i++)
-                Add(new PaletteEntry(p[i]));
-        }
-
-        private void Initialise()
-        {
-            if (_pStore == null)
-                _pStore = new List<PaletteEntry>();
-            _pStore.Clear();
-            _EntryCount = 0;
-        }
-
-        public PaletteEntry Next()
-        {
-            if (activeEntry < LastIndex) 
-            {
-                activeEntry++;
-
-                if (activeEntry >= _pStore.Count || _pStore[activeEntry] == null)
-                    _pStore.Add(new PaletteEntry());
-
-                OnPaletteEntryChange();
-            }
-            return _pStore[activeEntry];
-        }
-
-        public PaletteEntry Previous()
-        {
-            if (activeEntry > 0)
-            {
-                activeEntry--;
-                OnPaletteEntryChange();
-            }
-            return _pStore[activeEntry];
-        }
-
-        public PaletteEntry Active
-        {
-            get { return _pStore[activeEntry]; }
-        }
-
-        public void Add( PaletteEntry p )
-        {
-            _pStore.Add(p);
-            _EntryCount++;
-        }
-
-        public void Limit( int c ) // number of entries, not final array position
-        {
-            //          _EntryCount = c > 0 ? c - 1 : 0;
-            _EntryCount = c;
-        }
-
-        public void Clear()
-        {
-            _pStore.Clear();
-            Initialise();
-        }
-
-        public void Load(ConfigNode node)
-        {
-            Clear();
-            Initialise();
-            // Node is called PALETTE - assume this is passed the node, not the entire config 
-            // entries will be PALETTE_ENTRY sub nodes
-            foreach (ConfigNode e in node.GetNodes(Constant.PaletteEntryTag)) // I hope GetNodes() is ordered...
-            {
-                var p_e = new PaletteEntry();
-                p_e.Load(e);
-                Add(p_e);
-            }
-        }
-
-        public void Save(ConfigNode node)
-        {
-            for ( int i = 0; i < _pStore.Count; i++ )
-            {
-                var n = new ConfigNode(Constant.PaletteEntryTag);
-                _pStore[i].Save(n);
-                node.AddNode( n );
-            }
+            Debug.Log("[ModuleTintable] destroying asset preloader");
         }
     }
-    #endregion
 
     public class ModuleTintable : PartModule
     {
@@ -547,7 +222,10 @@ namespace DLTD.Modules.ModuleTintable
         {
             set
             {
-                _cb = new Palette(value);
+                _cb = new Palette(value)
+                {
+                    DefaultOutputDivisor = Constant.UI_Slider_Max
+                };
             }
             get
             {
@@ -1075,7 +753,10 @@ namespace DLTD.Modules.ModuleTintable
               // belt & braces
             if (Palette == null)
             {
-                Palette = new Palette();
+                Palette = new Palette
+                {
+                    DefaultOutputDivisor = Constant.UI_Slider_Max
+                };
             }
 
             base.OnAwake();

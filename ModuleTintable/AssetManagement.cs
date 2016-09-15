@@ -1,51 +1,107 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
 
+// This whole file due a revision - use existing KSP classes where possible
+
 namespace DLTD.Utility
 {
-    public static class DLTD_Utility_AssetManagment_Constant
+    /// <summary>
+    /// DLTD_Utilities_AssetManagement_Constant - constants for AssetManagement in DLTD.Utility namespace
+    /// </summary>
+    public static class DLTD_U_AM_Constant
     {
         public const string pathSep = "/";
         public const int bundleUnloadFramecount = 30;
+        public const string mfg = "DLTD";
+        public const string preloadBundleDir = "Preload"; // in global Packages
     }
 
+     /*
+     * Structures:
+     *  Base: base game dir
+     *  GameData: base + "GameData"
+     *  MfgDir: GameData + mod manufacturer
+     *  Mod: MfgDir + mod base - may be null
+     *  
+     *  Assets: for bundles/generic
+     *  |- Packages: asset bundles and attributes
+     *  
+     *  Parts: anything KSP classifies as a part
+     *  Plugins: dll
+     *  |- PluginData: dll runtime data
+     * 
+     * Paths start at MfgDir unless otherwise noted
+     */
     public class KSPPaths
     {
-        public string Base;
+        public static string BuildPath( params string [] pathMembers )
+        {
+            return string.Join(DLTD_U_AM_Constant.pathSep.ToString(), pathMembers);
+        }
+
+        public static string Base;
         public string LocalDir
         {
-            get { return Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location).Replace("\\", DLTD_Utility_AssetManagment_Constant.pathSep); }
+            get { return Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location).Replace("\\", DLTD_U_AM_Constant.pathSep); }
+        }
+
+        public static string FullPath( string pathRelative )
+        {
+            return BuildPath(Base, pathRelative);
+        }
+
+        public static string GameData
+        {
+            get { return "GameData"; }
+        }
+
+        public static string GDRelative(string mfgRelativePath)
+        {
+            return BuildPath(GameData, mfgRelativePath);
+        }
+
+        private string _mfg = DLTD_U_AM_Constant.mfg;
+        public string MFGDir
+        {
+            get { return _mfg; }
+            set { _mfg = value; }
         }
            
         private string _modsub;
         public string Mod
         {
-            get { return Base + DLTD_Utility_AssetManagment_Constant.pathSep + "GameData" + DLTD_Utility_AssetManagment_Constant.pathSep +  _modsub; }
+            get {   return (_modsub != "") ? BuildPath( MFGDir, _modsub ) : MFGDir; }
             set { _modsub = value; }
         }
 
-        public string ModRelative
+        public string Plugins
         {
-            get { return _modsub; }
+            get { return BuildPath( Mod, "Plugins" ); }
         }
 
         private string _pdLivesIn = "";
         public string PluginDataIsBelow
         {
-            set { _pdLivesIn = value + DLTD_Utility_AssetManagment_Constant.pathSep; }
+            set { _pdLivesIn = value; }
         }
 
         public string PluginData
         {
-            get { return Mod + DLTD_Utility_AssetManagment_Constant.pathSep + _pdLivesIn + "PluginData"; }
+            get { return BuildPath( Plugins, _pdLivesIn, "PluginData"); }
+        }
+
+        public string Assets
+        {
+            get { return BuildPath( Mod, "Assets" ); }
         }
 
         public string Packages
         {
-            get { return Mod + DLTD_Utility_AssetManagment_Constant.pathSep + "Packages"; }
+            get { return BuildPath(Assets, "Packages"); }
         }
 
         public KSPPaths( string modName = null, string pdl = null )
@@ -62,15 +118,24 @@ namespace DLTD.Utility
         public string BundleID;
         public UnityEngine.Object Asset;
         public ConfigNode Attributes;
+        private string _container;
+        public string url
+        {
+            set { _container = value;  }
+            get { return KSPPaths.BuildPath(_container, Asset.name); } // this isn't quite right because we want the asset filename, find out how to get that out of a bundle
+        }
 
-        public AssetRecord( UnityEngine.Object asset, string b_ID = "root" )
+
+        public AssetRecord( UnityEngine.Object asset, string URL, string b_ID = "root" )
         {
             Asset = asset;
             BundleID = b_ID;
+            url = URL;
         }
     }
 
-    public enum BundleState {  Unloaded, BundleLoading, AssetLoading, AttributesLoading, BundleWaitingForUnload, BundleReadyForUnload, Final }
+    public enum BundleState {  Unloaded, BundleLoading, AssetLoading, AttributesLoading, BundleWaitingForUnload, BundleReadyForUnload, Final };
+    public enum BundleType {  Bundle, Directory };
     public delegate void BundleRecordStateChange(BundleRecord b);
 
     // revert back to delegate? use delegate for OnStateChange and OnFinalize, don't have to subscribe to both
@@ -87,6 +152,11 @@ namespace DLTD.Utility
             get { return _clients; }
         }
 
+        public void RegisterClient( IAssetBundleClient c )
+        {
+            Clients.Add(c);
+        }
+
         private BundleState _state;
         public BundleState State
         {
@@ -96,6 +166,8 @@ namespace DLTD.Utility
                 OnStateChange();
             }
         }
+
+        public BundleType bundleType = BundleType.Bundle;
 
         public bool Finalized
         {
@@ -117,25 +189,41 @@ namespace DLTD.Utility
         }
 
         public string BundleID;
-        public string BundleLoc;
-        public int TTL = DLTD_Utility_AssetManagment_Constant.bundleUnloadFramecount;
+
+        private KSPPaths bundlePath;
+        public string BundleFN;
+        public string BundleLoc
+        {
+            get { return KSPPaths.BuildPath( KSPPaths.GDRelative( bundlePath.Packages ), BundleFN ); }
+        }
+        public string BundleLocFull
+        {
+            get { return KSPPaths.FullPath(BundleLoc); }
+        }
+
+        public int TTL = DLTD_U_AM_Constant.bundleUnloadFramecount;
 
         public string BundleLocForWWW
         {
-            get { return "file:///" + BundleLoc; }
+            get { return "file:///" + BundleLocFull; }
         }
         public UnityEngine.Object[] Assets;
         public ConfigNode Attributes;
 
-        public BundleRecord( string loc, string b_ID = "root", BundleState initialState = BundleState.Unloaded )
+        public BundleRecord( KSPPaths loc, string bundleFN, string b_ID = "root", BundleState initialState = BundleState.Unloaded )
         {
             BundleID = b_ID;
-            BundleLoc = loc.Replace("\\", DLTD_Utility_AssetManagment_Constant.pathSep);
+            BundleFN = bundleFN;
+            bundlePath = loc;
             _clients = new List<IAssetBundleClient>();
             State = initialState;
-            TTL = DLTD_Utility_AssetManagment_Constant.bundleUnloadFramecount;
+            TTL = DLTD_U_AM_Constant.bundleUnloadFramecount;
         }
     }
+
+    delegate IEnumerator AssetLoader(BundleRecord b);
+    delegate UnityEngine.Object AssetCreator(byte[] raw);
+    delegate void AssetPostLoad( UnityEngine.Object obj);
 
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     class AssetManager : MonoBehaviour
@@ -147,13 +235,88 @@ namespace DLTD.Utility
         private const string attributeTag = "ASSET_ATTRIBUTE";
         private const string attributeExt = ".atr";
 
+        private static KSPPaths globalPaths;
+
+        private Dictionary<BundleType, AssetLoader> Loaders;
+        private Dictionary<Type, AssetPostLoad> AssetPostLoaders;
+
         public Dictionary<string, AssetRecord> Assets;
         public Dictionary<string, BundleRecord> AssetsByBundleID;
         public List<BundleRecord> UnloadQueue;
 
         public static AssetManager instance;
 
-        private IEnumerator LoadAssetBundle( BundleRecord bundleRec )
+        protected Dictionary<string, AssetCreator> typeCreators; // extension -> type
+
+        // turn this into attribute + small class pairs at some point
+        private void InitialiseLoaders()
+        {
+            Loaders = new Dictionary<BundleType, AssetLoader>();
+            Loaders.Add(BundleType.Bundle, LoadAssetBundleFromBundle);
+            Loaders.Add(BundleType.Directory, LoadAssetBundleFromDirectory);
+
+            typeCreators = new Dictionary<string, AssetCreator>();
+            typeCreators.Add("shader", (assetData) =>
+            {
+
+               var shaderData = Convert.ToBase64String(assetData);
+
+               // borrowed from EVE/rbray
+               if (SystemInfo.graphicsDeviceVersion.Contains("OpenGL"))
+               {
+                   shaderData = shaderData.Replace("Offset 0, 0", "Offset -.25, -.25");
+               }
+
+               var tempMat = new Material(shaderData);
+               return tempMat.shader;
+            });
+
+            AssetCreator imgLoader = (assetData) =>
+            {
+                var tex = new Texture2D(2, 2);
+                tex.LoadImage(assetData);
+                return tex;
+            };
+
+            typeCreators.Add("tga", imgLoader);
+            typeCreators.Add("png", imgLoader);
+            typeCreators.Add("jpg", imgLoader);
+            typeCreators.Add("jpeg", imgLoader);
+            typeCreators.Add("dds", imgLoader); // not sure this works
+
+            AssetPostLoaders = new Dictionary<Type, AssetPostLoad>();
+            //AssetPostLoaders.Add(typeof(Shader), (s) =>
+            //    {
+            //        // sadly this does not force the shader into unity's internal list
+            //        var m = new Material((s as Shader));
+            //    }
+            //);
+        }
+
+        private void BundledAssetsFilterAndAttribs(BundleRecord bundleRec )
+        {
+            AssetsByBundleID[bundleRec.BundleID] = bundleRec;
+
+            for (int i = 0; i < bundleRec.Assets.Length; i++)
+            {
+
+ //               dbg.Print("Asset " + bundleRec.Assets[i].name + " is a " + bundleRec.Assets[i].GetType().ToString());
+
+                var assetName = bundleRec.Assets[i].name;
+                var assetRec = new AssetRecord(bundleRec.Assets[i], bundleRec.BundleLoc, bundleRec.BundleID);
+                Assets[assetName] = assetRec;
+
+                if( AssetPostLoaders.ContainsKey( bundleRec.Assets[i].GetType()))
+                {
+                    AssetPostLoaders[bundleRec.Assets[i].GetType()](bundleRec.Assets[i]);
+                }
+            }
+
+            bundleRec.State = BundleState.AttributesLoading;
+            LoadAssetAttributes(bundleRec);
+        }
+
+        private IEnumerator LoadAssetBundleFromBundle( BundleRecord bundleRec )
         {
             while (!Caching.ready)
                 yield return null;
@@ -172,7 +335,7 @@ namespace DLTD.Utility
                     yield break;
                 }
 
-  //                         dbg.Print("LoadAssetBundle: bundle " + bundleRec.BundleID + " loaded from disk, preparing to load assets.");
+                                         //dbg.Print("LoadAssetBundle: bundle " + bundleRec.BundleID + " loaded from disk, preparing to load assets.");
 
                 var bundle = www.assetBundle;
                 bundleRec.State = BundleState.AssetLoading;
@@ -180,22 +343,11 @@ namespace DLTD.Utility
 
                 yield return assetsLoadRequest;
 
-  //                         dbg.Print("LoadAssetBundle: bundle " + bundleRec.BundleID + " assets loaded.");
+                                         //dbg.Print("LoadAssetBundle: bundle " + bundleRec.BundleID + " assets loaded.");
 
                 bundleRec.Assets = assetsLoadRequest.allAssets;
 
-                AssetsByBundleID[bundleRec.BundleID] = bundleRec;
-
-                for (int i = 0; i < bundleRec.Assets.Length; i++)
-                {
-                    var assetName = bundleRec.Assets[i].name;
-                    var assetRec = new AssetRecord(bundleRec.Assets[i], bundleRec.BundleID);
-                    //                dbg.Print("LoadAssetBundle: " + n);
-                    Assets[assetName] = assetRec;
-                }
-
-                bundleRec.State = BundleState.AttributesLoading;
-                LoadAssetAttributes(bundleRec);
+                BundledAssetsFilterAndAttribs(bundleRec);
 
                 bundleRec.State = BundleState.BundleWaitingForUnload;
 
@@ -207,14 +359,62 @@ namespace DLTD.Utility
                 dbg.Print("LoadAssetBundle: unloading bundle " + bundleRec.BundleID);
                 bundle.Unload(false);
                 bundleRec.State = BundleState.Final;
-            }
+          }
         }
 
+        private IEnumerator LoadAssetBundleFromDirectory(BundleRecord bundleRec)
+        {
+            while (!Caching.ready)
+                yield return null;
+
+            //            var bundleLoadRequest = AssetBundle.LoadFromFileAsync(b.BundleLoc);
+            //            var bundle = AssetBundle.CreateFromFile(b.BundleLoc);
+
+            bundleRec.State = BundleState.BundleLoading;
+            bundleRec.State = BundleState.AssetLoading;
+            if (bundleRec.Assets == null)
+                bundleRec.Assets = new UnityEngine.Object[10];
+
+            var _brAssetI = 0;
+
+            foreach (string asset in Directory.GetFiles(bundleRec.BundleLoc))
+            {
+                AssetCreator assetCreator;
+                if (typeCreators.TryGetValue(Path.GetExtension(asset).ToLower(), out assetCreator))
+                {
+                    using (FileStream assetStream = new FileStream(asset, FileMode.Open))
+                    {
+                        var assetData = new byte[assetStream.Length];
+                        var _leftToRead = assetStream.Length;
+                        var _readLength = (assetStream.Length > int.MaxValue) ? int.MaxValue : (int)assetStream.Length;
+
+                        while (_leftToRead > 0)
+                        {
+                            assetStream.Read(assetData, 0, _readLength);
+                            _leftToRead -= _readLength;
+                            _readLength = (_leftToRead > int.MaxValue) ? int.MaxValue : (int)_leftToRead;
+                        }
+                        bundleRec.Assets[_brAssetI++] = assetCreator(assetData);
+                    }
+                }
+                yield return asset;
+            }
+
+            //                         dbg.Print("LoadAssetBundle: bundle " + bundleRec.BundleID + " loaded from disk, preparing to load assets.");
+
+            //                         dbg.Print("LoadAssetBundle: bundle " + bundleRec.BundleID + " assets loaded.");
+
+            BundledAssetsFilterAndAttribs(bundleRec);
+
+            bundleRec.State = BundleState.BundleWaitingForUnload;
+            bundleRec.State = BundleState.Final;
+
+        }
 
 
         private void LoadAssetAttributes( BundleRecord bundleRec)
         {
-            var cfgFile = bundleRec.BundleLoc + attributeExt;
+            var cfgFile = bundleRec.BundleLocFull + attributeExt;
 
             if (!File.Exists(cfgFile))
                 return;
@@ -237,12 +437,12 @@ namespace DLTD.Utility
 
         public static BundleRecord CreateModBundle ( KSPPaths modPaths, string bundleFN, string bundleID )
         {
-            return new BundleRecord(modPaths.Packages + DLTD_Utility_AssetManagment_Constant.pathSep + bundleFN, bundleID);
+            return new BundleRecord(modPaths, bundleFN, bundleID);
         }
 
         public BundleRecord LoadModBundle( BundleRecord bundleRec )
         {
-            StartCoroutine(LoadAssetBundle(bundleRec));
+            StartCoroutine(Loaders[bundleRec.bundleType](bundleRec));
             //          StartCoroutine(LoadAssetAttributes(bundleRec));
             return bundleRec;
         }
@@ -250,7 +450,7 @@ namespace DLTD.Utility
         public BundleRecord LoadModBundle( KSPPaths modPaths, string bundleFN, string bundleID, IAssetBundleClient client = null )
         {
  //           dbg.Print("LoadModBundle: " + modPaths.Mod + " " + bundleFN + " " + bundleID);
-            var bundleRec = new BundleRecord(modPaths.Packages + DLTD_Utility_AssetManagment_Constant.pathSep + bundleFN, bundleID);
+            var bundleRec = new BundleRecord(modPaths, bundleFN, bundleID);
             bundleRec.Clients.Add(client);
             return LoadModBundle(bundleRec);
         }
@@ -258,7 +458,7 @@ namespace DLTD.Utility
         public BundleRecord LoadModBundle(KSPPaths modPaths, string bundleFN, string bundleID, BundleRecordStateChange handler = null )
         {
             //           dbg.Print("LoadModBundle: " + modPaths.Mod + " " + bundleFN + " " + bundleID);
-            var bundleRec = new BundleRecord(modPaths.Packages + DLTD_Utility_AssetManagment_Constant.pathSep + bundleFN, bundleID);
+            var bundleRec = new BundleRecord( modPaths, bundleFN, bundleID);
             if (handler != null )
                 bundleRec.EveryStateChange += handler;
             return LoadModBundle(bundleRec);
@@ -291,14 +491,30 @@ namespace DLTD.Utility
             return assetRecords;
         }
 
+        private void LoadGlobalPreloadBundles()
+        {
+            foreach (string bundleFile in Directory.GetFiles(KSPPaths.FullPath(KSPPaths.GDRelative(globalPaths.Packages)))) // you know, I think this is a bit overcomplicated
+            {
+                if (Path.GetExtension( bundleFile ) == "")
+                {
+                    var fn = Path.GetFileName(bundleFile);
+                    dbg.Print("Preloading " + fn);
+                    LoadModBundle(CreateModBundle(globalPaths, fn, fn));
+                }
+            }
+        }
 
         public void Awake()
         {
             Assets = new Dictionary<string, AssetRecord>();
             AssetsByBundleID = new Dictionary<string, BundleRecord>();
             UnloadQueue = new List<BundleRecord>();
+            globalPaths = new KSPPaths();
 
             dbg = new TDebug("[DLTD AssetManager] ");
+
+            InitialiseLoaders();
+            LoadGlobalPreloadBundles();
 
             DontDestroyOnLoad(this);
         }
@@ -316,7 +532,7 @@ namespace DLTD.Utility
                     if( UnloadQueue[i].TTL == 0 )
                     {
                         UnloadQueue[i].State = BundleState.BundleReadyForUnload;
-                        UnloadQueue[i].TTL = DLTD_Utility_AssetManagment_Constant.bundleUnloadFramecount;
+                        UnloadQueue[i].TTL = DLTD_U_AM_Constant.bundleUnloadFramecount;
                         UnloadQueue.RemoveAt(i);
                         if (UnloadQueue.Count == 0)
                             UnloadQueue.TrimExcess();

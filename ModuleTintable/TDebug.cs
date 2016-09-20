@@ -69,34 +69,39 @@ namespace DLTD.Utility
             Debug.Log(mdbtag + "OnAwake()");
         }
 
+        private void Log( string logString )
+        {
+            Debug.Log(mdbtag + " " + HighLogic.LoadedScene.ToString() + " " + logString);
+        }
+
         public override void OnLoad(ConfigNode node)
         {
-            Debug.Log(mdbtag + "OnLoad()");
+            Log(mdbtag + "OnLoad()");
         }
 
         public override void OnSave(ConfigNode node)
         {
-            Debug.Log(mdbtag + "OnSave()");
+            Log(mdbtag + "OnSave()");
         }
 
         public void OnEditorAttach()
         {
-            Debug.Log(mdbtag + "OnEditorAttach()");
+            Log(mdbtag + "OnEditorAttach()");
         }
 
         public override void OnInitialize()
         {
-            Debug.Log(mdbtag + "OnInitialize()");
+            Log(mdbtag + "OnInitialize()");
         }
 
         public override void OnActive()
         {
-            Debug.Log(mdbtag + "OnActive()");
+            Log(mdbtag + "OnActive()");
         }
 
         public void Start()
         {
-            Debug.Log(mdbtag+"Start()");
+            Log(mdbtag+"Start()");
         }
 
         public void Update()
@@ -104,7 +109,7 @@ namespace DLTD.Utility
             if( !updateRun )
             {
                 updateRun = true;
-                Debug.Log(mdbtag + "Update()");
+                Log(mdbtag + "Update()");
             }
         }
 
@@ -113,7 +118,7 @@ namespace DLTD.Utility
             if (!fixedUpdateRun)
             {
                 fixedUpdateRun = true;
-                Debug.Log(mdbtag + "FixedUpdate()");
+                Log(mdbtag + "FixedUpdate()");
             }
         }
 
@@ -122,13 +127,13 @@ namespace DLTD.Utility
             if (!lateUpdateRun)
             {
                 lateUpdateRun = true;
-                Debug.Log(mdbtag + "LateUpdate()");
+                Log(mdbtag + "LateUpdate()");
             }
         }
 
         public void OnDestroy()
         {
-            Debug.Log("[ModuleTrace] OnDestroy()");
+            Log("[ModuleTrace] OnDestroy()");
         }
     }
 }

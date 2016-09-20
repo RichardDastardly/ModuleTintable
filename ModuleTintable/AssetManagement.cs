@@ -112,7 +112,7 @@ namespace DLTD.Utility
         }
     }
 
-
+    // use/extend KSP asset class instead
     public class AssetRecord
     {
         public string BundleID;
@@ -285,12 +285,16 @@ namespace DLTD.Utility
             typeCreators.Add("dds", imgLoader); // not sure this works
 
             AssetPostLoaders = new Dictionary<Type, AssetPostLoad>();
-            //AssetPostLoaders.Add(typeof(Shader), (s) =>
-            //    {
-            //        // sadly this does not force the shader into unity's internal list
-            //        var m = new Material((s as Shader));
-            //    }
-            //);
+            AssetPostLoaders.Add(typeof(Shader), (s) =>
+                {
+                    if (!GameDatabase.Instance.ExistsShader(s.name))
+                    {
+//                        dbg.Print("Injecting " + s.name + " into GameDatabase.databaseShaders");
+// failed again - PartReader uses shader.Find()
+                        GameDatabase.Instance.databaseShaders.Add(s as Shader);
+                    }
+                }
+            );
         }
 
         private void BundledAssetsFilterAndAttribs(BundleRecord bundleRec )
@@ -325,6 +329,8 @@ namespace DLTD.Utility
             //            var bundle = AssetBundle.CreateFromFile(b.BundleLoc);
 
             bundleRec.State = BundleState.BundleLoading;
+            AssetBundle bundle;
+
             using (WWW www = new WWW(bundleRec.BundleLocForWWW))
             {
                 yield return www;
@@ -335,10 +341,11 @@ namespace DLTD.Utility
                     yield break;
                 }
 
-                                         //dbg.Print("LoadAssetBundle: bundle " + bundleRec.BundleID + " loaded from disk, preparing to load assets.");
+                //dbg.Print("LoadAssetBundle: bundle " + bundleRec.BundleID + " loaded from disk, preparing to load assets.");
 
-                var bundle = www.assetBundle;
+                bundle = www.assetBundle;
                 bundleRec.State = BundleState.AssetLoading;
+            }
                 var assetsLoadRequest = bundle.LoadAllAssetsAsync();
 
                 yield return assetsLoadRequest;
@@ -359,7 +366,7 @@ namespace DLTD.Utility
                 dbg.Print("LoadAssetBundle: unloading bundle " + bundleRec.BundleID);
                 bundle.Unload(false);
                 bundleRec.State = BundleState.Final;
-          }
+     //     }
         }
 
         private IEnumerator LoadAssetBundleFromDirectory(BundleRecord bundleRec)
@@ -385,12 +392,12 @@ namespace DLTD.Utility
                     using (FileStream assetStream = new FileStream(asset, FileMode.Open))
                     {
                         var assetData = new byte[assetStream.Length];
-                        var _leftToRead = assetStream.Length;
+                        var _leftToRead = (int)assetStream.Length;
                         var _readLength = (assetStream.Length > int.MaxValue) ? int.MaxValue : (int)assetStream.Length;
 
                         while (_leftToRead > 0)
                         {
-                            assetStream.Read(assetData, 0, _readLength);
+                            assetStream.Read(assetData, (int)assetStream.Length - _leftToRead, _readLength);
                             _leftToRead -= _readLength;
                             _readLength = (_leftToRead > int.MaxValue) ? int.MaxValue : (int)_leftToRead;
                         }
@@ -498,7 +505,7 @@ namespace DLTD.Utility
                 if (Path.GetExtension( bundleFile ) == "")
                 {
                     var fn = Path.GetFileName(bundleFile);
-                    dbg.Print("Preloading " + fn);
+ //                   dbg.Print("Preloading " + fn);
                     LoadModBundle(CreateModBundle(globalPaths, fn, fn));
                 }
             }
